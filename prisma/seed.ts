@@ -40,8 +40,9 @@ async function main() {
   })
 
   console.log('Creating users...')
-  const adminPassword = await bcrypt.hash('Admin123!', 10)
-  const learnerPassword = await bcrypt.hash('Learn123!', 10)
+  const adminPassword  = await bcrypt.hash('admin123',   10)
+  const kunalPassword  = await bcrypt.hash('Learner123', 10)
+  const sabikaPassword = await bcrypt.hash('Learner456', 10)
 
   await prisma.user.create({
     data: {
@@ -52,30 +53,21 @@ async function main() {
     },
   })
 
-  await prisma.user.create({
+  const kunal = await prisma.user.create({
     data: {
-      email: 'sarah@manmatters.com',
-      password: adminPassword,
-      displayName: 'Sarah',
-      role: 'admin',
-    },
-  })
-
-  const alex = await prisma.user.create({
-    data: {
-      email: 'alex@manmatters.com',
-      password: learnerPassword,
-      displayName: 'Alex',
+      email: 'kunal@manmatters.com',
+      password: kunalPassword,
+      displayName: 'Kunal',
       role: 'learner',
       cohortId: cohort.id,
     },
   })
 
-  const sam = await prisma.user.create({
+  const sabika = await prisma.user.create({
     data: {
-      email: 'sam@manmatters.com',
-      password: learnerPassword,
-      displayName: 'Sam',
+      email: 'sabika@manmatters.com',
+      password: sabikaPassword,
+      displayName: 'Sabika',
       role: 'learner',
       cohortId: cohort.id,
     },
@@ -813,7 +805,7 @@ async function main() {
   console.log('Unlocking Week 1 for learners...')
   const week1Record = await prisma.week.findUnique({ where: { number: 1 } })
   if (week1Record) {
-    for (const learner of [alex, sam]) {
+    for (const learner of [kunal, sabika]) {
       await prisma.userWeekProgress.create({
         data: {
           userId: learner.id,
@@ -829,7 +821,7 @@ async function main() {
   console.log('Awarding Early Operator badge...')
   const earlyOpBadge = await prisma.badge.findFirst({ where: { conditionValue: 'early_operator' } })
   if (earlyOpBadge) {
-    for (const learner of [alex, sam]) {
+    for (const learner of [kunal, sabika]) {
       await prisma.userBadge.create({
         data: { userId: learner.id, badgeId: earlyOpBadge.id },
       })
