@@ -1,0 +1,340 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  password     String
+  displayName  String
+  avatarUrl    String?
+  role         String   @default("learner")
+  cohortId     String?
+  cohort       Cohort?  @relation(fields: [cohortId], references: [id])
+  createdAt    DateTime @default(now())
+  lastActiveAt DateTime @default(now())
+
+  weekProgress       UserWeekProgress[]
+  subtopicProgress   UserSubtopicProgress[]
+  quizAttempts       QuizAttempt[]
+  projectSubmissions ProjectSubmission[]
+  xpTransactions     XPTransaction[]
+  userBadges         UserBadge[]
+  streakRecords      StreakRecord[]
+
+  @@map("users")
+}
+
+model Cohort {
+  id        String   @id @default(cuid())
+  name      String
+  startDate DateTime
+  users     User[]
+
+  @@map("cohorts")
+}
+
+model Week {
+  id          String  @id @default(cuid())
+  number      Int     @unique
+  title       String
+  description String
+  isPublished Boolean @default(false)
+  badgeName   String?
+  badgeIcon   String?
+
+  topics       Topic[]
+  weekProgress UserWeekProgress[]
+
+  @@map("weeks")
+}
+
+model Topic {
+  id        String   @id @default(cuid())
+  weekId    String
+  week      Week     @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  title     String
+  tag       String   @default("tech")
+  sortOrder Int      @default(0)
+
+  subtopics Subtopic[]
+
+  @@map("topics")
+}
+
+model Subtopic {
+  id          String @id @default(cuid())
+  topicId     String
+  topic       Topic  @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  title       String
+  description String @default("")
+  tag         String @default("tech")
+  sortOrder   Int    @default(0)
+
+  references   Reference[]
+  quiz         Quiz?
+  project      Project?
+  userProgress UserSubtopicProgress[]
+
+  @@map("subtopics")
+}
+
+model Reference {
+  id         String   @id @default(cuid())
+  subtopicId String
+  subtopic   Subtopic @relation(fields: [subtopicId], references: [id], onDelete: Cascade)
+  title      String
+  url        String
+  refType    String   @default("article")
+  sortOrder  Int      @default(0)
+
+  @@map("references")
+}
+
+model Quiz {
+  id            String   @id @default(cuid())
+  subtopicId    String   @unique
+  subtopic      Subtopic @relation(fields: [subtopicId], references: [id], onDelete: Cascade)
+  status        String   @default("draft")
+  passThreshold Int      @default(80)
+  createdAt     DateTime @default(now())
+
+  questions Question[]
+  attempts  QuizAttempt[]
+
+  @@map("quizzes")
+}
+
+model Question {
+  id        String @id @default(cuid())
+  quizId    String
+  quiz      Quiz   @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  type      String
+  text      String
+  sortOrder Int    @default(0)
+  points    Int    @default(1)
+
+  options        AnswerOption[]
+  attemptAnswers QuizAttemptAnswer[]
+
+  @@map("questions")
+}
+
+model AnswerOption {
+  id         String   @id @default(cuid())
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  text       String
+  isCorrect  Boolean  @default(false)
+  sortOrder  Int      @default(0)
+
+  attemptAnswers QuizAttemptAnswer[]
+
+  @@map("answer_options")
+}
+
+model QuizAttempt {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  quizId        String
+  quiz          Quiz      @relation(fields: [quizId], references: [id])
+  attemptNumber Int       @default(1)
+  rawScore      Int       @default(0)
+  maxScore      Int       @default(0)
+  scorePct      Float     @default(0)
+  passed        Boolean   @default(false)
+  startedAt     DateTime  @default(now())
+  completedAt   DateTime?
+
+  answers QuizAttemptAnswer[]
+
+  @@map("quiz_attempts")
+}
+
+model QuizAttemptAnswer {
+  id               String        @id @default(cuid())
+  attemptId        String
+  attempt          QuizAttempt   @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  questionId       String
+  question         Question      @relation(fields: [questionId], references: [id])
+  selectedOptionId String?
+  selectedOption   AnswerOption? @relation(fields: [selectedOptionId], references: [id])
+  textResponse     String?
+  isCorrect        Boolean?
+
+  @@map("quiz_attempt_answers")
+}
+
+model Project {
+  id             String   @id @default(cuid())
+  subtopicId     String   @unique
+  subtopic       Subtopic @relation(fields: [subtopicId], references: [id], onDelete: Cascade)
+  title          String
+  briefText      String
+  expectedOutput String
+  isPublished    Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  criteria    RubricCriterion[]
+  submissions ProjectSubmission[]
+
+  @@map("projects")
+}
+
+model RubricCriterion {
+  id          String  @id @default(cuid())
+  projectId   String
+  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  description String
+  maxMarks    Int
+  sortOrder   Int     @default(0)
+
+  criterionScores ProjectCriterionScore[]
+
+  @@map("rubric_criteria")
+}
+
+model ProjectSubmission {
+  id             String   @id @default(cuid())
+  projectId      String
+  project        Project  @relation(fields: [projectId], references: [id])
+  userId         String
+  user           User     @relation(fields: [userId], references: [id])
+  submissionLink String?
+  notes          String?
+  submittedAt    DateTime @default(now())
+
+  grade ProjectGrade?
+
+  @@map("project_submissions")
+}
+
+model ProjectGrade {
+  id            String            @id @default(cuid())
+  submissionId  String            @unique
+  submission    ProjectSubmission @relation(fields: [submissionId], references: [id])
+  totalScore    Int
+  maxTotalScore Int
+  scorePct      Float
+  feedbackText  String?
+  gradedAt      DateTime          @default(now())
+
+  criterionScores ProjectCriterionScore[]
+
+  @@map("project_grades")
+}
+
+model ProjectCriterionScore {
+  id           String          @id @default(cuid())
+  gradeId      String
+  grade        ProjectGrade    @relation(fields: [gradeId], references: [id], onDelete: Cascade)
+  criterionId  String
+  criterion    RubricCriterion @relation(fields: [criterionId], references: [id])
+  scoreAwarded Int
+
+  @@map("project_criterion_scores")
+}
+
+model XPTransaction {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  amount        Int
+  reason        String
+  referenceType String?
+  referenceId   String?
+  createdAt     DateTime @default(now())
+
+  @@map("xp_transactions")
+}
+
+model Badge {
+  id             String  @id @default(cuid())
+  name           String
+  description    String
+  iconEmoji      String  @default("🏅")
+  conditionType  String
+  conditionValue String?
+  isSpecial      Boolean @default(false)
+
+  userBadges UserBadge[]
+
+  @@map("badges")
+}
+
+model UserBadge {
+  id       String   @id @default(cuid())
+  userId   String
+  user     User     @relation(fields: [userId], references: [id])
+  badgeId  String
+  badge    Badge    @relation(fields: [badgeId], references: [id])
+  earnedAt DateTime @default(now())
+
+  @@unique([userId, badgeId])
+  @@map("user_badges")
+}
+
+model StreakRecord {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  weekStartDate DateTime
+  hasActivity   Boolean  @default(false)
+  streakCount   Int      @default(0)
+
+  @@unique([userId, weekStartDate])
+  @@map("streak_records")
+}
+
+model UserWeekProgress {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id])
+  weekId          String
+  week            Week      @relation(fields: [weekId], references: [id])
+  isUnlocked      Boolean   @default(false)
+  isCompleted     Boolean   @default(false)
+  unlockedAt      DateTime?
+  completedAt     DateTime?
+  unlockedByAdmin Boolean   @default(false)
+
+  @@unique([userId, weekId])
+  @@map("user_week_progress")
+}
+
+model UserSubtopicProgress {
+  id               String    @id @default(cuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id])
+  subtopicId       String
+  subtopic         Subtopic  @relation(fields: [subtopicId], references: [id])
+  quizPassed       Boolean   @default(false)
+  projectRequired  Boolean   @default(false)
+  projectSubmitted Boolean   @default(false)
+  projectGraded    Boolean   @default(false)
+  completedAt      DateTime?
+
+  @@unique([userId, subtopicId])
+  @@map("user_subtopic_progress")
+}
+
+model AdminOverrideLog {
+  id            String   @id @default(cuid())
+  adminId       String
+  targetUserId  String
+  actionType    String
+  referenceType String?
+  referenceId   String?
+  reason        String?
+  createdAt     DateTime @default(now())
+
+  @@map("admin_override_logs")
+}
