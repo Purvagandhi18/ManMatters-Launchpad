@@ -27,6 +27,7 @@ model User {
   xpTransactions     XPTransaction[]
   userBadges         UserBadge[]
   streakRecords      StreakRecord[]
+  topicReflections   TopicReflection[]
 
   @@map("users")
 }
@@ -63,7 +64,8 @@ model Topic {
   tag       String   @default("tech")
   sortOrder Int      @default(0)
 
-  subtopics Subtopic[]
+  subtopics   Subtopic[]
+  reflections TopicReflection[]
 
   @@map("topics")
 }
@@ -337,4 +339,21 @@ model AdminOverrideLog {
   createdAt     DateTime @default(now())
 
   @@map("admin_override_logs")
+}
+
+model TopicReflection {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topicId    String
+  topic      Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  content    String
+  aiScore    Float?
+  aiFeedback String?
+  status     String   @default("submitted")
+  submittedAt DateTime @default(now())
+  revisedAt   DateTime?
+
+  @@unique([userId, topicId])
+  @@map("topic_reflections")
 }

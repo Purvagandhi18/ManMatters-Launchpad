@@ -24,6 +24,15 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const prevAttempts = await prisma.quizAttempt.count({ where: { userId, quizId: params.id } })
   const isRetry = prevAttempts > 0
 
+  if (prevAttempts >= 1) {
+    const grant = await prisma.adminOverrideLog.findFirst({
+      where: { targetUserId: userId, actionType: 'quiz_retry_grant', referenceType: 'quiz', referenceId: params.id },
+    })
+    if (!grant || prevAttempts >= 2) {
+      return NextResponse.json({ error: 'attempt_limit_reached' }, { status: 403 })
+    }
+  }
+
   let rawScore = 0
   const maxScore = quiz.questions.reduce((s, q) => s + q.points, 0)
   const attemptAnswers: {

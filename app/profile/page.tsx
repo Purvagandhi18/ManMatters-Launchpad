@@ -1,10 +1,10 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { Navbar } from '@/components/learner/Navbar'
 import { XPBar } from '@/components/ui/XPBar'
 import { getInitials, formatXP } from '@/lib/utils'
-import { Flame, Trophy, CheckCircle2 } from 'lucide-react'
+import { Flame, Trophy, CheckCircle2, Camera, Loader2 } from 'lucide-react'
 
 interface BadgeData {
   id: string
@@ -20,6 +20,7 @@ interface UserData {
   id: string
   displayName: string
   email: string
+  avatarUrl?: string | null
   totalXP: number
   level: { level: number; name: string; minXP: number; maxXP: number }
   streak: number
@@ -32,6 +33,8 @@ export default function ProfilePage() {
   const [userData, setUserData] = useState<UserData | null>(null)
   const [badges, setBadges] = useState<BadgeData[]>([])
   const [loading, setLoading] = useState(true)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     Promise.all([
@@ -43,6 +46,37 @@ export default function ProfilePage() {
       setLoading(false)
     })
   }, [])
+
+  async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingPhoto(true)
+    const reader = new FileReader()
+    reader.onload = async (ev) => {
+      const img = new window.Image()
+      img.onload = async () => {
+        const canvas = document.createElement('canvas')
+        const size = 240
+        canvas.width = size
+        canvas.height = size
+        const ctx = canvas.getContext('2d')!
+        const scale = Math.max(size / img.width, size / img.height)
+        const w = img.width * scale
+        const h = img.height * scale
+        ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h)
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.75)
+        await fetch('/api/users/me', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ avatarUrl: dataUrl }),
+        })
+        setUserData(prev => prev ? { ...prev, avatarUrl: dataUrl } : prev)
+        setUploadingPhoto(false)
+      }
+      img.src = ev.target?.result as string
+    }
+    reader.readAsDataURL(file)
+  }
 
   if (loading || !userData) {
     return (
@@ -63,8 +97,28 @@ export default function ProfilePage() {
           {/* Profile hero */}
           <div className="bg-white rounded-2xl border border-gray-200 p-6 md:p-8 mb-6">
             <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
-              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0 shadow-lg">
-                {getInitials(userData.displayName)}
+              <div className="relative flex-shrink-0">
+                <div className="w-20 h-20 rounded-2xl overflow-hidden shadow-lg bg-gradient-to-br from-brand-500 to-purple-600">
+                  {userData.avatarUrl
+                    ? <img src={userData.avatarUrl} alt="" className="w-full h-full object-cover" />
+                    : <span className="w-full h-full flex items-center justify-center text-white text-2xl font-bold">{getInitials(userData.displayName)}</span>
+                  }
+                </div>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingPhoto}
+                  className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-brand-600 text-white flex items-center justify-center shadow-md hover:bg-brand-700 transition-colors disabled:opacity-60"
+                  title="Change photo"
+                >
+                  {uploadingPhoto ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handlePhotoChange}
+                />
               </div>
               <div className="flex-1 text-center sm:text-left">
                 <h1 className="text-2xl font-bold text-gray-900">{userData.displayName}</h1>

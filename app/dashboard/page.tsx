@@ -8,6 +8,7 @@ import { Trophy, Medal, Award, X, Zap, Flame, Star } from 'lucide-react'
 import { formatXP, getInitials } from '@/lib/utils'
 import { staggerContainer } from '@/lib/animations'
 import { getLearnerTitle } from '@/lib/gamification'
+import { signOut } from 'next-auth/react'
 
 const LEVEL_COLORS: Record<number, { ring: string; shadow: string }> = {
   1: { ring: '#94a3b8', shadow: 'rgba(148,163,184,0.30)' },
@@ -45,6 +46,7 @@ interface WeekData {
 
 interface UserData {
   displayName: string
+  avatarUrl?: string | null
   totalXP: number
   level: { name: string; level: number; minXP: number; maxXP: number }
   streak: number
@@ -80,25 +82,30 @@ export default function DashboardPage() {
   useEffect(() => {
     Promise.all([
       fetch('/api/weeks').then(r => r.json()),
-      fetch('/api/users/me').then(r => r.json()),
+      fetch('/api/users/me').then(async r => ({ ok: r.ok, data: await r.json() })),
       fetch('/api/leaderboard').then(r => r.json()),
     ]).then(([w, u, l]) => {
+      if (!u.ok) {
+        signOut({ callbackUrl: '/login' })
+        return
+      }
       setWeeks(w)
-      setUserData(u)
+      setUserData(u.data)
       setLeaderboard(l.slice(0, 3))
       setLoading(false)
     })
   }, [])
 
-  if (loading || !userData) {
+  if (loading || !userData || !userData.level) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: '#F8F6FF' }}>
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
-          className="w-8 h-8 rounded-full"
-          style={{ border: '3px solid #E4DEFF', borderTopColor: '#5B38F5' }}
-        />
+      <div className="min-h-screen" style={{ background: '#F8F6FF' }}>
+        <div className="h-14 bg-white border-b border-[#E4DEFF]" />
+        <div className="max-w-7xl mx-auto px-4 py-8 space-y-4">
+          <div className="h-48 rounded-3xl bg-[#EDEAFF]/70 animate-pulse" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[1,2,3].map(i => <div key={i} className="h-40 rounded-2xl bg-white border border-[#E4DEFF] animate-pulse" />)}
+          </div>
+        </div>
       </div>
     )
   }
@@ -168,10 +175,13 @@ export default function DashboardPage() {
                       style={{ background: lc.shadow, transform: 'scale(1.5)' }}
                     />
                     <div
-                      className="relative w-20 h-20 rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-lg"
-                      style={{ background: `linear-gradient(135deg, ${lc.ring}, #5B38F5)` }}
+                      className="relative w-20 h-20 rounded-2xl overflow-hidden shadow-lg"
+                      style={userData.avatarUrl ? {} : { background: `linear-gradient(135deg, ${lc.ring}, #5B38F5)` }}
                     >
-                      {getInitials(userData.displayName)}
+                      {userData.avatarUrl
+                        ? <img src={userData.avatarUrl} alt="" className="w-full h-full object-cover" />
+                        : <span className="w-full h-full flex items-center justify-center text-white font-black text-2xl">{getInitials(userData.displayName)}</span>
+                      }
                     </div>
                     <div
                       className="absolute -bottom-1.5 -right-1.5 bg-white rounded-full h-6 px-2 flex items-center text-[10px] font-black shadow border border-gray-100"
@@ -183,38 +193,31 @@ export default function DashboardPage() {
 
                   <div>
                     <motion.div
-                      initial={{ opacity: 0, y: 6 }}
+                      initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.18 }}
-                      className="flex items-center gap-2 mb-1"
+                      transition={{ delay: 0.18, type: 'spring', stiffness: 280, damping: 22 }}
+                      className="flex items-end gap-3 mb-0.5"
                     >
-                      <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-brand-600">
+                      <span
+                        className="font-black uppercase tracking-[0.22em] leading-none"
+                        style={{ fontSize: 'clamp(1.75rem, 4vw, 2.75rem)', color: '#1A1033' }}
+                      >
                         {title}
                       </span>
                       {userData.streak >= 2 && (
-                        <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-orange-600 bg-orange-50 border border-orange-100 rounded-full px-2 py-0.5">
-                          🔥 {userData.streak}w streak
+                        <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-orange-600 bg-orange-50 border border-orange-100 rounded-full px-2 py-0.5 mb-1">
+                          🔥 {userData.streak}w
                         </span>
                       )}
                     </motion.div>
 
-                    <motion.h1
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.22, type: 'spring', stiffness: 280, damping: 22 }}
-                      className="text-3xl md:text-4xl font-black tracking-tight"
-                      style={{ color: '#1A1033' }}
-                    >
-                      {firstName}
-                    </motion.h1>
-
                     <motion.p
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
-                      transition={{ delay: 0.34 }}
-                      className="text-gray-400 text-xs mt-0.5"
+                      transition={{ delay: 0.3 }}
+                      className="text-gray-500 text-sm font-medium"
                     >
-                      {greeting} · {userData.level.name}
+                      {firstName} · Level {userData.level.level}
                     </motion.p>
                   </div>
                 </div>

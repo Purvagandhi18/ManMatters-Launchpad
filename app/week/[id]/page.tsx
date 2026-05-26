@@ -1,8 +1,11 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronRight, CheckCircle2, Circle, BookOpen, ClipboardList, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react'
+import {
+  ChevronRight, CheckCircle2, Circle, BookOpen, ClipboardList,
+  ExternalLink, ChevronDown, ChevronUp, Pencil, Loader2, RefreshCw,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface SubtopicData {
@@ -41,50 +44,321 @@ interface WeekData {
   topics: TopicData[]
 }
 
+interface Reflection {
+  id: string
+  content: string
+  aiScore: number | null
+  aiFeedback: string | null
+  status: string
+  submittedAt: string
+  revisedAt: string | null
+}
+
+// ─── Reflection panel ──────────────────────────────────────────────────────
+function ReflectionPanel({ topicId, topicTitle }: { topicId: string; topicTitle: string }) {
+  const [reflection, setReflection] = useState<Reflection | null | undefined>(undefined)
+  const [text, setText]             = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError]           = useState('')
+
+  useEffect(() => {
+    fetch(`/api/topics/${topicId}/reflection`)
+      .then(r => r.json())
+      .then(d => {
+        setReflection(d)
+        if (d) setText(d.content)
+      })
+  }, [topicId])
+
+  async function submit() {
+    setError('')
+    if (text.trim().length < 20) { setError('Write at least 20 characters.'); return }
+    setSubmitting(true)
+    const res = await fetch(`/api/topics/${topicId}/reflection`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: text }),
+    })
+    const data = await res.json()
+    if (!res.ok) { setError(data.error ?? 'Something went wrong.'); setSubmitting(false); return }
+    setReflection(data)
+    setSubmitting(false)
+  }
+
+  if (reflection === undefined) return null
+
+  const isApproved     = reflection?.status === 'approved'
+  const needsRevision  = reflection?.status === 'needs_revision'
+  const canEdit        = !reflection || needsRevision
+
+  return (
+    <div className={cn(
+      'mx-5 mb-5 rounded-xl border p-4',
+      isApproved   ? 'bg-emerald-50 border-emerald-200' :
+      needsRevision ? 'bg-amber-50 border-amber-200'   :
+      'bg-[#F5F3FF] border-[#E4DEFF]'
+    )}>
+      <div className="flex items-center gap-2 mb-3">
+        <Pencil size={14} className={cn(
+          isApproved ? 'text-emerald-600' : needsRevision ? 'text-amber-600' : 'text-brand-600'
+        )} />
+        <p className={cn(
+          'text-xs font-bold uppercase tracking-wide',
+          isApproved ? 'text-emerald-700' : needsRevision ? 'text-amber-700' : 'text-brand-700'
+        )}>
+          {isApproved ? 'Reflection Complete' : needsRevision ? 'Needs Revision' : 'Topic Reflection'}
+        </p>
+        {isApproved && reflection?.aiScore != null && (
+          <span className="ml-auto text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+            {reflection.aiScore.toFixed(1)} / 10
+          </span>
+        )}
+      </div>
+
+      {/* AI feedback */}
+      {reflection?.aiFeedback && (
+        <p className={cn(
+          'text-xs mb-3 leading-relaxed',
+          isApproved ? 'text-emerald-700' : 'text-amber-700'
+        )}>
+          {reflection.aiFeedback}
+        </p>
+      )}
+
+      {/* Approved — show saved reflection */}
+      {isApproved && reflection && (
+        <p className="text-sm text-gray-700 bg-white rounded-lg p-3 border border-emerald-100 leading-relaxed">
+          {reflection.content}
+        </p>
+      )}
+
+      {/* Editable state */}
+      {canEdit && (
+        <>
+          {needsRevision && (
+            <p className="text-xs text-amber-600 mb-2">
+              Revise your reflection based on the feedback above and resubmit.
+            </p>
+          )}
+          {!reflection && (
+            <p className="text-xs text-[#6B57B8] mb-2">
+              What did you learn from <strong>{topicTitle}</strong>? Be specific — mention key ideas, surprises, or how you&apos;d apply this.
+            </p>
+          )}
+          <textarea
+            value={text}
+            onChange={e => setText(e.target.value)}
+            rows={4}
+            placeholder="Write your reflection here…"
+            className="w-full text-sm rounded-lg border border-[#E4DEFF] bg-white px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-brand-400 text-gray-800 placeholder-gray-400"
+          />
+          {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+          <button
+            onClick={submit}
+            disabled={submitting}
+            className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-brand-600 text-white text-xs font-semibold hover:bg-brand-700 disabled:opacity-60 transition-colors"
+          >
+            {submitting ? <><Loader2 size={12} className="animate-spin" /> Evaluating…</> : needsRevision ? <><RefreshCw size={12} /> Resubmit</> : 'Submit Reflection'}
+          </button>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ─── Topic card ────────────────────────────────────────────────────────────
+function TopicCard({ topic, onQuiz, onProject }: {
+  topic: TopicData
+  onQuiz: (quizId: string) => void
+  onProject: (projectId: string) => void
+}) {
+  const [expanded, setExpanded] = useState(true)
+
+  const completedCount = topic.subtopics.filter(
+    s => s.userProgress[0]?.quizPassed || s.userProgress[0]?.completedAt
+  ).length
+  const total = topic.subtopics.length
+  const allDone = completedCount === total && total > 0
+  const pct = total > 0 ? Math.round((completedCount / total) * 100) : 0
+
+  const isTech = topic.tag === 'tech'
+
+  return (
+    <div className="bg-white rounded-2xl border border-[#E4DEFF] overflow-hidden shadow-sm">
+      {/* Accent bar */}
+      <div className={cn(
+        'h-1',
+        isTech
+          ? 'bg-gradient-to-r from-brand-500 to-purple-500'
+          : 'bg-gradient-to-r from-orange-400 to-rose-400'
+      )} />
+
+      {/* Topic header */}
+      <button
+        onClick={() => setExpanded(v => !v)}
+        className="w-full flex items-center justify-between px-5 py-4 hover:bg-[#FAFAFE] transition-colors text-left"
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <span className={cn(
+            'text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0',
+            isTech
+              ? 'bg-brand-100 text-brand-700'
+              : 'bg-orange-100 text-orange-700'
+          )}>
+            {topic.tag.toUpperCase()}
+          </span>
+          <h2 className="font-bold text-[#1A1033] text-sm truncate">{topic.title}</h2>
+        </div>
+        <div className="flex items-center gap-3 flex-shrink-0 ml-3">
+          <div className="flex items-center gap-2">
+            <div className="w-20 h-1.5 bg-[#E4DEFF] rounded-full overflow-hidden">
+              <div
+                className={cn('h-full rounded-full transition-all', pct === 100 ? 'bg-emerald-500' : 'bg-brand-500')}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            <span className="text-xs text-gray-400 tabular-nums">{completedCount}/{total}</span>
+          </div>
+          {expanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+        </div>
+      </button>
+
+      {/* Subtopics */}
+      {expanded && (
+        <div className="border-t border-[#F0ECFF]">
+          {topic.subtopics.map((subtopic, idx) => {
+            const progress         = subtopic.userProgress[0]
+            const isQuizPassed     = progress?.quizPassed
+            const isProjectSubmitted = progress?.projectSubmitted
+            const isCompleted      = isQuizPassed || (progress?.completedAt != null)
+
+            return (
+              <div
+                key={subtopic.id}
+                className={cn(
+                  'px-5 py-3.5 flex items-start gap-3 group',
+                  idx > 0 && 'border-t border-[#F5F3FF]'
+                )}
+              >
+                <div className="flex-shrink-0 mt-0.5">
+                  {isCompleted
+                    ? <CheckCircle2 size={18} className="text-emerald-500" />
+                    : <Circle size={18} className="text-gray-300 group-hover:text-brand-400 transition-colors" />
+                  }
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <p className={cn(
+                    'text-sm font-medium',
+                    isCompleted ? 'text-gray-500' : 'text-[#1A1033]'
+                  )}>
+                    {subtopic.title}
+                  </p>
+                  {subtopic.description && (
+                    <p className="text-xs text-gray-400 mt-0.5 line-clamp-2">{subtopic.description}</p>
+                  )}
+                  {subtopic.references.length > 0 && (
+                    <div className="flex gap-3 mt-1.5 flex-wrap">
+                      {subtopic.references.map(ref => (
+                        <a
+                          key={ref.id}
+                          href={ref.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 hover:underline"
+                          onClick={e => e.stopPropagation()}
+                        >
+                          <ExternalLink size={10} />
+                          {ref.title}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex-shrink-0 flex gap-2">
+                  {subtopic.quiz && subtopic.quiz.status === 'live' && (
+                    <button
+                      onClick={() => onQuiz(subtopic.quiz!.id)}
+                      className={cn(
+                        'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors',
+                        isQuizPassed
+                          ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+                          : 'bg-brand-600 text-white hover:bg-brand-700'
+                      )}
+                    >
+                      <BookOpen size={12} />
+                      {isQuizPassed ? 'Passed' : 'Quiz'}
+                    </button>
+                  )}
+                  {subtopic.project && subtopic.project.isPublished && (
+                    <button
+                      onClick={() => onProject(subtopic.project!.id)}
+                      className={cn(
+                        'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors',
+                        isProjectSubmitted
+                          ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+                          : 'bg-orange-500 text-white hover:bg-orange-600'
+                      )}
+                    >
+                      <ClipboardList size={12} />
+                      {isProjectSubmitted ? 'Submitted' : 'Project'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+
+          {/* Reflection section — shows when all subtopics done */}
+          {allDone && (
+            <div className="border-t border-[#F0ECFF]">
+              <ReflectionPanel topicId={topic.id} topicTitle={topic.title} />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Week page ─────────────────────────────────────────────────────────────
 export default function WeekPage() {
   const params = useParams()
   const router = useRouter()
-  const [week, setWeek] = useState<WeekData | null>(null)
+  const [week, setWeek]   = useState<WeekData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     fetch(`/api/weeks/${params.id}`)
       .then(r => r.json())
-      .then(data => {
-        setWeek(data)
-        // Expand all topics by default
-        setExpandedTopics(new Set(data.topics?.map((t: TopicData) => t.id) ?? []))
-        setLoading(false)
-      })
+      .then(data => { setWeek(data); setLoading(false) })
   }, [params.id])
-
-  function toggleTopic(topicId: string) {
-    setExpandedTopics(prev => {
-      const next = new Set(prev)
-      if (next.has(topicId)) next.delete(topicId)
-      else next.add(topicId)
-      return next
-    })
-  }
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <p className="text-gray-400">Loading week…</p>
+      <div className="min-h-screen bg-[#F8F6FF]">
+        {/* Skeleton header */}
+        <div className="bg-white border-b border-[#E4DEFF] h-12" />
+        <div className="max-w-3xl mx-auto px-4 py-8 space-y-4">
+          <div className="h-36 rounded-2xl bg-[#E4DEFF]/60 animate-pulse" />
+          {[1, 2, 3].map(i => (
+            <div key={i} className="h-24 rounded-2xl bg-white border border-[#E4DEFF] animate-pulse" />
+          ))}
+        </div>
       </div>
     )
   }
 
   if (!week) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <p className="text-gray-500">Week not found.</p>
+      <div className="min-h-screen flex items-center justify-center bg-[#F8F6FF]">
+        <p className="text-gray-400">Week not found.</p>
       </div>
     )
   }
 
-  const allSubtopics = week.topics.flatMap(t => t.subtopics)
+  const allSubtopics   = week.topics.flatMap(t => t.subtopics)
   const completedCount = allSubtopics.filter(
     s => s.userProgress[0]?.quizPassed || s.userProgress[0]?.completedAt
   ).length
@@ -92,167 +366,67 @@ export default function WeekPage() {
   const pct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-30">
-        <div className="max-w-4xl mx-auto px-4 py-3">
-          <nav className="flex items-center gap-2 text-sm text-gray-500 mb-1">
-            <Link href="/dashboard" className="hover:text-brand-600 transition-colors">Dashboard</Link>
-            <ChevronRight size={14} />
-            <span className="text-gray-900 font-medium">Week {week.number}: {week.title}</span>
+    <div className="min-h-screen bg-[#F8F6FF]">
+      {/* Sticky breadcrumb */}
+      <div className="bg-white/80 backdrop-blur-sm border-b border-[#E4DEFF] sticky top-0 z-30">
+        <div className="max-w-3xl mx-auto px-4 h-12 flex items-center">
+          <nav className="flex items-center gap-1.5 text-sm">
+            <Link href="/dashboard" className="text-brand-600 hover:text-brand-700 font-medium transition-colors">
+              Dashboard
+            </Link>
+            <ChevronRight size={14} className="text-gray-300" />
+            <span className="text-[#1A1033] font-semibold">Week {week.number}: {week.title}</span>
           </nav>
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-4 py-8">
+      <div className="max-w-3xl mx-auto px-4 py-6 space-y-4">
         {/* Week hero */}
-        <div className="bg-gradient-to-r from-brand-600 to-purple-600 rounded-2xl p-6 text-white mb-8 shadow">
+        <div
+          className="rounded-2xl p-6 text-white shadow-md"
+          style={{ background: 'linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)' }}
+        >
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-brand-100 text-sm font-medium mb-1">WEEK {week.number}</p>
-              <h1 className="text-2xl font-bold mb-2">
+              <p className="text-indigo-200 text-xs font-bold uppercase tracking-widest mb-1">
+                Week {week.number}
+              </p>
+              <h1 className="text-xl font-bold mb-1">
                 {week.badgeIcon} {week.title}
               </h1>
-              <p className="text-brand-100 text-sm max-w-xl">{week.description}</p>
+              <p className="text-indigo-200 text-sm max-w-md leading-relaxed">{week.description}</p>
             </div>
             {week.badgeName && (
-              <div className="hidden md:flex flex-col items-center text-center ml-6 flex-shrink-0">
-                <span className="text-4xl mb-1">{week.badgeIcon}</span>
-                <p className="text-xs text-brand-200">Earn: {week.badgeName}</p>
+              <div className="hidden md:flex flex-col items-center text-center ml-4 flex-shrink-0 bg-white/10 rounded-xl px-3 py-2">
+                <span className="text-3xl mb-0.5">{week.badgeIcon}</span>
+                <p className="text-[10px] text-indigo-200 font-medium">Earn: {week.badgeName}</p>
               </div>
             )}
           </div>
 
-          <div className="mt-5 space-y-2">
-            <div className="flex justify-between text-xs text-brand-100">
-              <span>{completedCount} / {totalCount} subtopics completed</span>
-              <span>{pct}%</span>
+          <div className="mt-4 space-y-1.5">
+            <div className="flex justify-between text-xs text-indigo-200">
+              <span>{completedCount} / {totalCount} subtopics</span>
+              <span className="font-bold">{pct}%</span>
             </div>
             <div className="h-2 bg-white/20 rounded-full overflow-hidden">
-              <div className="h-full bg-white rounded-full transition-all" style={{ width: `${pct}%` }} />
+              <div
+                className="h-full bg-white rounded-full transition-all duration-500"
+                style={{ width: `${pct}%` }}
+              />
             </div>
           </div>
         </div>
 
-        {/* Topics */}
-        <div className="space-y-4">
-          {week.topics.map(topic => {
-            const isExpanded = expandedTopics.has(topic.id)
-            const topicCompleted = topic.subtopics.filter(
-              s => s.userProgress[0]?.quizPassed || s.userProgress[0]?.completedAt
-            ).length
-            const topicTotal = topic.subtopics.length
-
-            return (
-              <div
-                key={topic.id}
-                className={cn(
-                  'bg-white rounded-2xl border-2 overflow-hidden',
-                  topic.tag === 'tech' ? 'border-brand-500' : 'border-orange-400'
-                )}
-              >
-                <button
-                  onClick={() => toggleTopic(topic.id)}
-                  className="w-full flex items-center justify-between p-5 hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <span
-                      className={cn(
-                        'text-xs font-bold px-2 py-0.5 rounded-full',
-                        topic.tag === 'tech'
-                          ? 'bg-tech-bg text-tech-text'
-                          : 'bg-marketing-bg text-marketing-text'
-                      )}
-                    >
-                      {topic.tag.toUpperCase()}
-                    </span>
-                    <h2 className="font-bold text-gray-900">{topic.title}</h2>
-                    <span className="text-sm text-gray-400">{topicCompleted}/{topicTotal}</span>
-                  </div>
-                  {isExpanded ? <ChevronUp size={18} className="text-gray-400" /> : <ChevronDown size={18} className="text-gray-400" />}
-                </button>
-
-                {isExpanded && (
-                  <div className="border-t border-gray-100 divide-y divide-gray-50">
-                    {topic.subtopics.map(subtopic => {
-                      const progress = subtopic.userProgress[0]
-                      const isQuizPassed = progress?.quizPassed
-                      const isProjectSubmitted = progress?.projectSubmitted
-                      const isCompleted = isQuizPassed || (progress?.completedAt != null)
-
-                      return (
-                        <div key={subtopic.id} className="px-5 py-4 flex items-center gap-4 hover:bg-gray-50 transition-colors group">
-                          <div className="flex-shrink-0">
-                            {isCompleted
-                              ? <CheckCircle2 size={20} className="text-green-500" />
-                              : <Circle size={20} className="text-gray-300 group-hover:text-brand-400 transition-colors" />
-                            }
-                          </div>
-
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 truncate">{subtopic.title}</p>
-                            {subtopic.description && (
-                              <p className="text-xs text-gray-400 mt-0.5 truncate">{subtopic.description}</p>
-                            )}
-                            {subtopic.references.length > 0 && (
-                              <div className="flex gap-2 mt-1 flex-wrap">
-                                {subtopic.references.map(ref => (
-                                  <a
-                                    key={ref.id}
-                                    href={ref.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700"
-                                    onClick={e => e.stopPropagation()}
-                                  >
-                                    <ExternalLink size={10} />
-                                    {ref.title}
-                                  </a>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="flex-shrink-0">
-                            {subtopic.quiz && subtopic.quiz.status === 'live' && (
-                              <button
-                                onClick={() => router.push(`/quiz/${subtopic.quiz!.id}`)}
-                                className={cn(
-                                  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors',
-                                  isQuizPassed
-                                    ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                                    : 'bg-brand-600 text-white hover:bg-brand-700'
-                                )}
-                              >
-                                <BookOpen size={12} />
-                                {isQuizPassed ? 'Passed' : 'Take Quiz'}
-                              </button>
-                            )}
-
-                            {subtopic.project && subtopic.project.isPublished && (
-                              <button
-                                onClick={() => router.push(`/project/${subtopic.project!.id}`)}
-                                className={cn(
-                                  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors',
-                                  isProjectSubmitted
-                                    ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                                    : 'bg-orange-500 text-white hover:bg-orange-600'
-                                )}
-                              >
-                                <ClipboardList size={12} />
-                                {isProjectSubmitted ? 'Submitted' : 'View Project'}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
+        {/* Topic cards */}
+        {week.topics.map(topic => (
+          <TopicCard
+            key={topic.id}
+            topic={topic}
+            onQuiz={id => router.push(`/quiz/${id}`)}
+            onProject={id => router.push(`/project/${id}`)}
+          />
+        ))}
       </div>
     </div>
   )

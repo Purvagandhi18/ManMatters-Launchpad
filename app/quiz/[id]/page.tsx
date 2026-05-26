@@ -71,6 +71,7 @@ export default function QuizPage() {
   const [currentQ, setCurrentQ]   = useState(0)
   const [result, setResult]       = useState<QuizResult | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [attemptBlocked, setAttemptBlocked] = useState(false)
 
   // Level-up detection
   const [xpBefore, setXPBefore]   = useState<number | null>(null)
@@ -97,6 +98,11 @@ export default function QuizPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ answers }),
     })
+    if (res.status === 403) {
+      setAttemptBlocked(true)
+      setSubmitting(false)
+      return
+    }
     const data: QuizResult = await res.json()
     setResult(data)
     setPhase('result')
@@ -277,7 +283,7 @@ export default function QuizPage() {
               transition={{ delay: 0.6 }}
               className="flex gap-3"
             >
-              {!result.passed && (
+              {!result.passed && !attemptBlocked && (
                 <Button
                   variant="secondary"
                   onClick={() => { setAnswers({}); setCurrentQ(0); setResult(null); setPhase('taking') }}
@@ -294,6 +300,22 @@ export default function QuizPage() {
           </div>
         </div>
       </>
+    )
+  }
+
+  // ── Attempt blocked ───────────────────────────────────────────────────────
+  if (attemptBlocked) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl border border-gray-200 p-8 max-w-md w-full text-center shadow-sm">
+          <div className="text-5xl mb-4">🔒</div>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Attempt Limit Reached</h2>
+          <p className="text-gray-500 text-sm mb-6">
+            You&apos;ve used your attempt for this quiz. Contact your admin if you need another try.
+          </p>
+          <Button onClick={() => router.back()} className="w-full">Back to Week</Button>
+        </div>
+      </div>
     )
   }
 

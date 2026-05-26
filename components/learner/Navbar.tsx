@@ -10,6 +10,7 @@ interface NavbarProps {
     totalXP: number
     level: { name: string; level: number }
     streak: number
+    avatarUrl?: string | null
   }
   title?: string
 }
@@ -45,11 +46,18 @@ export function Navbar({ user, title }: NavbarProps) {
 
           {/* Identity */}
           <Link href="/profile" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-            <div
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-[11px] font-black shadow-sm"
-              style={{ background: 'linear-gradient(135deg, #5B38F5, #7C3AED)' }}
-            >
-              {getInitials(user.displayName)}
+            <div className="w-7 h-7 rounded-lg overflow-hidden flex-shrink-0 shadow-sm">
+              {user.avatarUrl
+                ? <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
+                : (
+                  <div
+                    className="w-full h-full flex items-center justify-center text-white text-[11px] font-black"
+                    style={{ background: 'linear-gradient(135deg, #5B38F5, #7C3AED)' }}
+                  >
+                    {getInitials(user.displayName)}
+                  </div>
+                )
+              }
             </div>
             <div className="hidden sm:block">
               <p className="text-xs font-bold leading-none" style={{ color: '#1A1033' }}>{displayTitle}</p>

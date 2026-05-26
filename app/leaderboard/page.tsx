@@ -116,7 +116,7 @@ export default function LeaderboardPage() {
                       <motion.div
                         whileHover={{ scale: 1.08, rotate: [0, -4, 4, 0] }}
                         transition={{ duration: 0.3 }}
-                        className="w-12 h-12 rounded-xl flex items-center justify-center text-white text-sm font-black shadow-lg"
+                        className="w-12 h-12 rounded-xl overflow-hidden shadow-lg flex-shrink-0"
                         style={{
                           background: `linear-gradient(135deg, ${p.color}, #5B38F5)`,
                           boxShadow: `0 6px 20px ${p.ring}`,
@@ -124,7 +124,10 @@ export default function LeaderboardPage() {
                           outlineOffset: 2,
                         }}
                       >
-                        {getInitials(entry.displayName)}
+                        {entry.avatarUrl
+                          ? <img src={entry.avatarUrl} alt="" className="w-full h-full object-cover" />
+                          : <span className="w-full h-full flex items-center justify-center text-white text-sm font-black">{getInitials(entry.displayName)}</span>
+                        }
                       </motion.div>
 
                       <p className="text-[10px] font-bold text-brand-500 uppercase tracking-wide">{title}</p>
@@ -184,14 +187,17 @@ export default function LeaderboardPage() {
 
                       {/* Avatar */}
                       <div
-                        className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-xs font-black flex-shrink-0 shadow-sm"
+                        className="w-9 h-9 rounded-xl overflow-hidden flex-shrink-0 shadow-sm"
                         style={{
                           background: 'linear-gradient(135deg, #5B38F5, #7C3AED)',
                           outline: isMe ? '2px solid #5B38F5' : 'none',
                           outlineOffset: 2,
                         }}
                       >
-                        {getInitials(entry.displayName)}
+                        {entry.avatarUrl
+                          ? <img src={entry.avatarUrl} alt="" className="w-full h-full object-cover" />
+                          : <span className="w-full h-full flex items-center justify-center text-white text-xs font-black">{getInitials(entry.displayName)}</span>
+                        }
                       </div>
 
                       {/* Info */}
