@@ -85,7 +85,7 @@ export default function LeaderboardPage() {
             </div>
             <h1 className="text-3xl font-black tracking-tight" style={{ color: '#1A1033' }}>Leaderboard</h1>
             <p className="text-sm text-gray-400 mt-1">
-              {myRank > 0 ? `You're ranked #${myRank} — keep pushing` : 'See how your cohort is performing'}
+              {myRank > 0 ? `You're ranked #${myRank}. Keep pushing.` : 'See how your cohort is performing'}
             </p>
           </motion.div>
 

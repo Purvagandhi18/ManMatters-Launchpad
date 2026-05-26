@@ -9,12 +9,13 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  password     String
-  displayName  String
-  avatarUrl    String?
-  role         String   @default("learner")
+  id            String   @id @default(cuid())
+  email         String   @unique
+  password      String
+  displayName   String
+  avatarUrl     String?
+  learnerTitle  String?
+  role          String   @default("learner")
   cohortId     String?
   cohort       Cohort?  @relation(fields: [cohortId], references: [id])
   createdAt    DateTime @default(now())

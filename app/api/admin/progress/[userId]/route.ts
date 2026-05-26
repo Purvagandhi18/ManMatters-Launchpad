@@ -33,6 +33,10 @@ export async function GET(_: Request, { params }: { params: { userId: string } }
         },
       },
       userBadges: { include: { badge: true } },
+      topicReflections: {
+        include: { topic: { select: { title: true, sortOrder: true } } },
+        orderBy: { submittedAt: 'asc' },
+      },
     },
   })
 

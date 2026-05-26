@@ -28,7 +28,10 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const userId = (session.user as { id: string }).id
 
-  const [user, totalXP, streak] = await Promise.all([
+  const twelveWeeksAgo = new Date()
+  twelveWeeksAgo.setDate(twelveWeeksAgo.getDate() - 84)
+
+  const [user, totalXP, streak, xpTransactions] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
       include: {
@@ -38,11 +41,40 @@ export async function GET() {
     }),
     getUserTotalXP(userId),
     getCurrentStreak(userId),
+    prisma.xPTransaction.findMany({
+      where: { userId, createdAt: { gte: twelveWeeksAgo } },
+      select: { amount: true, createdAt: true },
+    }),
   ])
 
   if (!user) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
+  // Compute XP earned per week for activity level
+  const xpByWeek: Record<string, number> = {}
+  for (const tx of xpTransactions) {
+    const d = new Date(tx.createdAt)
+    const day = d.getDay()
+    const diff = (day === 0 ? -6 : 1) - day
+    const weekStart = new Date(d)
+    weekStart.setDate(d.getDate() + diff)
+    weekStart.setHours(0, 0, 0, 0)
+    const key = weekStart.toISOString()
+    xpByWeek[key] = (xpByWeek[key] ?? 0) + tx.amount
+  }
+
+  const streakRecordsWithLevel = user.streakRecords.map(r => {
+    const xp = xpByWeek[new Date(r.weekStartDate).toISOString()] ?? 0
+    const activityLevel = xp >= 150 ? 'high' : xp > 0 ? 'light' : r.hasActivity ? 'light' : 'none'
+    return { ...r, activityLevel }
+  })
+
   const level = getLevelFromXP(totalXP)
   const { password: _pw, ...userWithoutPassword } = user
-  return NextResponse.json({ ...userWithoutPassword, totalXP, level, streak })
+  return NextResponse.json({
+    ...userWithoutPassword,
+    streakRecords: streakRecordsWithLevel,
+    totalXP,
+    level,
+    streak,
+  })
 }
