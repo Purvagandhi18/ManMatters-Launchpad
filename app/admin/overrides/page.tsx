@@ -221,7 +221,7 @@ export default function OverridesPage() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-gray-900">
                       <span className="font-medium">{log.actionType}</span>
-                      {log.reason && <span className="text-gray-500"> — {log.reason}</span>}
+                      {log.reason && <span className="text-gray-500">: {log.reason}</span>}
                     </p>
                     <p className="text-xs text-gray-400">Target: {log.targetUserId} · {log.referenceId ?? '—'}</p>
                   </div>

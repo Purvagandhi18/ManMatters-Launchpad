@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { AdminSidebar } from '@/components/admin/AdminSidebar'
 import Link from 'next/link'
-import { ChevronRight, ChevronDown, ChevronUp, CheckCircle2, XCircle, ExternalLink } from 'lucide-react'
+import { ChevronRight, ChevronDown, ChevronUp, CheckCircle2, XCircle, ExternalLink, BookOpen } from 'lucide-react'
 import { formatXP } from '@/lib/utils'
 
 interface WeekProgress {
@@ -47,6 +47,16 @@ interface UserBadge {
   earnedAt: string
 }
 
+interface TopicReflection {
+  id: string
+  content: string
+  aiScore: number | null
+  aiFeedback: string | null
+  status: string
+  submittedAt: string
+  topic: { title: string; sortOrder: number }
+}
+
 interface UserDetail {
   id: string
   displayName: string
@@ -59,6 +69,7 @@ interface UserDetail {
   quizAttempts: QuizAttempt[]
   projectSubmissions: ProjectSubmission[]
   userBadges: UserBadge[]
+  topicReflections: TopicReflection[]
 }
 
 export default function LearnerDetailPage() {
@@ -124,7 +135,7 @@ export default function LearnerDetailPage() {
           <div className="grid grid-cols-5 gap-4 mt-5 pt-5 border-t border-gray-100">
             {[
               { label: 'Total XP', value: formatXP(user.totalXP) },
-              { label: 'Level', value: `${user.level.level} — ${user.level.name}` },
+              { label: 'Level', value: `${user.level.level}: ${user.level.name}` },
               { label: 'Streak', value: `${user.streak}w` },
               { label: 'Avg Score', value: `${avgScore}%` },
               { label: 'Badges', value: String(user.userBadges.length) },
@@ -306,7 +317,7 @@ export default function LearnerDetailPage() {
 
         {/* Badges */}
         {user.userBadges.length > 0 && (
-          <div className="bg-white rounded-2xl border border-gray-200 p-6">
+          <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-6">
             <h2 className="font-bold text-gray-900 mb-4">Badges Earned</h2>
             <div className="flex flex-wrap gap-3">
               {user.userBadges.map((ub, i) => (
@@ -321,6 +332,54 @@ export default function LearnerDetailPage() {
             </div>
           </div>
         )}
+
+        {/* Topic Reflections */}
+        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+            <BookOpen size={16} className="text-brand-600" />
+            <h2 className="font-bold text-gray-900">Topic Reflections ({user.topicReflections.length})</h2>
+          </div>
+          {user.topicReflections.length === 0 ? (
+            <div className="px-6 py-6 text-center text-gray-400 text-sm">No reflections submitted yet</div>
+          ) : (
+            <div className="divide-y divide-gray-50">
+              {user.topicReflections.map(r => (
+                <div key={r.id} className="px-6 py-5">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-sm font-semibold text-gray-900">{r.topic.title}</p>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {r.aiScore != null && (
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                          r.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                        }`}>
+                          {r.aiScore.toFixed(1)} / 10
+                        </span>
+                      )}
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                        r.status === 'approved' ? 'bg-green-100 text-green-700' :
+                        r.status === 'needs_revision' ? 'bg-amber-100 text-amber-700' :
+                        'bg-gray-100 text-gray-500'
+                      }`}>
+                        {r.status === 'approved' ? 'Approved' : r.status === 'needs_revision' ? 'Needs revision' : 'Submitted'}
+                      </span>
+                      <span className="text-xs text-gray-400">{new Date(r.submittedAt).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-700 bg-gray-50 rounded-lg p-3 mb-3 leading-relaxed border border-gray-100">
+                    {r.content}
+                  </p>
+                  {r.aiFeedback && (
+                    <div className={`rounded-lg px-3 py-2 text-xs leading-relaxed ${
+                      r.status === 'approved' ? 'bg-green-50 text-green-800 border border-green-100' : 'bg-amber-50 text-amber-800 border border-amber-100'
+                    }`}>
+                      <span className="font-semibold">AI feedback: </span>{r.aiFeedback}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </main>
     </div>
   )

@@ -47,7 +47,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       max_tokens: 512,
       messages: [{
         role: 'user',
-        content: `You are evaluating a learner's reflection on a topic they just studied.
+        content: `You are evaluating a learner's "What Did I Learn?" reflection on a topic they just studied.
 
 Topic: "${topic.title}"
 Subtopics covered:
@@ -56,16 +56,17 @@ ${subtopicList}
 Learner's reflection:
 "${content.trim()}"
 
-Evaluate on these criteria (each 0–10, then average):
-1. Coverage – does it reference key ideas from the subtopics?
-2. Specificity – concrete details, not generic filler?
-3. Correctness – are the concepts understood accurately?
-4. Originality – personal insights beyond paraphrasing?
+Evaluate quality of understanding on these dimensions (each 0–10, then average for final score):
+1. Conceptual understanding – does the learner show they genuinely grasped the topic, not just repeated definitions?
+2. Fundamentals strength – are the core concepts correctly understood and explained?
+3. Subtopic coverage – how well does it address the key points from the subtopics listed?
+4. Specificity – concrete, precise detail vs vague or generic statements?
+5. Originality – thoughtful personal synthesis vs AI-sounding or copy-paste phrasing?
 
 Return ONLY valid JSON in this exact shape (no markdown, no extra text):
-{"score": <0-10 float>, "feedback": "<2-3 sentence constructive feedback>", "status": "<approved|needs_revision>"}
+{"score": <0-10 float>, "feedback": "<2-3 sentence constructive feedback on what they understood well and what could be stronger>", "status": "<approved|needs_revision>"}
 
-Use "needs_revision" if score < 6. Be encouraging but honest.`,
+Use "needs_revision" if score < 6. Be encouraging but direct. Focus on depth of understanding, not style.`,
       }],
     })
 

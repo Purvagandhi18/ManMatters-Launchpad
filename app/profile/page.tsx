@@ -25,7 +25,7 @@ interface UserData {
   level: { level: number; name: string; minXP: number; maxXP: number }
   streak: number
   userBadges: { badge: { name: string; iconEmoji: string } }[]
-  streakRecords: { weekStartDate: string; hasActivity: boolean; streakCount: number }[]
+  streakRecords: { weekStartDate: string; hasActivity: boolean; streakCount: number; activityLevel?: string }[]
 }
 
 export default function ProfilePage() {
@@ -154,7 +154,7 @@ export default function ProfilePage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             {[
               { label: 'Total XP', value: formatXP(userData.totalXP), icon: <Trophy size={20} className="text-yellow-500" /> },
-              { label: 'Level', value: `${userData.level.level} — ${userData.level.name}`, icon: <span className="text-lg">🎯</span> },
+              { label: 'Level', value: `${userData.level.level}: ${userData.level.name}`, icon: <span className="text-lg">🎯</span> },
               { label: 'Streak', value: `${userData.streak} weeks`, icon: <Flame size={20} className="text-orange-500" /> },
               { label: 'Badges Earned', value: String(earnedBadges.length), icon: <span className="text-lg">🏅</span> },
             ].map(stat => (
@@ -173,21 +173,28 @@ export default function ProfilePage() {
                 <Flame size={18} className="text-orange-500" /> Activity Streak
               </h2>
               <div className="flex gap-2 flex-wrap">
-                {userData.streakRecords.slice(0, 12).reverse().map((record, i) => (
-                  <div
-                    key={i}
-                    title={new Date(record.weekStartDate).toLocaleDateString()}
-                    className={`w-10 h-10 rounded-lg flex items-center justify-center text-xs font-semibold ${
-                      record.hasActivity
-                        ? 'bg-orange-500 text-white'
-                        : 'bg-gray-100 text-gray-400'
-                    }`}
-                  >
-                    {record.hasActivity ? '🔥' : '○'}
-                  </div>
-                ))}
+                {userData.streakRecords.slice(0, 12).reverse().map((record, i) => {
+                  const level = record.activityLevel ?? (record.hasActivity ? 'light' : 'none')
+                  return (
+                    <div
+                      key={i}
+                      title={`${new Date(record.weekStartDate).toLocaleDateString()}${level === 'high' ? ' · High activity' : level === 'light' ? ' · Light activity' : ' · No activity'}`}
+                      className={`w-10 h-10 rounded-lg flex items-center justify-center text-xs font-semibold ${
+                        level === 'high'  ? 'bg-green-500 text-white' :
+                        level === 'light' ? 'bg-yellow-400 text-white' :
+                        'bg-gray-100 text-gray-400'
+                      }`}
+                    >
+                      {level === 'high' ? '🔥' : level === 'light' ? '✓' : '○'}
+                    </div>
+                  )
+                })}
               </div>
-              <p className="text-xs text-gray-400 mt-3">Each block represents one week of activity</p>
+              <p className="text-xs text-gray-400 mt-3">
+                <span className="inline-flex items-center gap-1 mr-3"><span className="w-3 h-3 rounded bg-green-500 inline-block" /> High activity</span>
+                <span className="inline-flex items-center gap-1 mr-3"><span className="w-3 h-3 rounded bg-yellow-400 inline-block" /> Light activity</span>
+                <span className="inline-flex items-center gap-1"><span className="w-3 h-3 rounded bg-gray-200 inline-block" /> None</span>
+              </p>
             </div>
           )}
 

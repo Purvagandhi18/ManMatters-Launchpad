@@ -47,6 +47,7 @@ interface WeekData {
 interface UserData {
   displayName: string
   avatarUrl?: string | null
+  learnerTitle?: string | null
   totalXP: number
   level: { name: string; level: number; minXP: number; maxXP: number }
   streak: number
@@ -111,8 +112,8 @@ export default function DashboardPage() {
   }
 
   const lc        = LEVEL_COLORS[userData.level.level] ?? LEVEL_COLORS[1]
-  const title     = getLearnerTitle(userData.level.level, userData.streak)
-  const firstName = userData.displayName.split(' ')[0]
+  const adjective = (userData.learnerTitle ?? getLearnerTitle(userData.level.level, userData.streak)).toUpperCase()
+  const firstName = userData.displayName.split(' ')[0].toUpperCase()
   const greeting  = getGreeting()
   const xpPct     = Math.min(100, ((userData.totalXP - userData.level.minXP) / Math.max(1, userData.level.maxXP - userData.level.minXP)) * 100)
 
@@ -124,7 +125,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen" style={{ background: '#F8F6FF' }}>
-      <Navbar user={userData} title={title} />
+      <Navbar user={userData} title={adjective} />
 
       <main className="pt-16">
         <div className="max-w-7xl mx-auto px-4 py-8">
@@ -190,10 +191,10 @@ export default function DashboardPage() {
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.18 }}
-                      className="font-black uppercase tracking-[0.18em] leading-none mb-1.5"
-                      style={{ fontSize: 'clamp(1.6rem, 3.5vw, 2.5rem)', color: '#1A1033' }}
+                      className="font-black leading-none mb-1.5 tracking-widest"
+                      style={{ fontSize: 'clamp(0.9rem, 1.8vw, 1.15rem)', color: '#1A1033' }}
                     >
-                      {title} {firstName}
+                      {adjective} {firstName}
                     </motion.h1>
                     <div className="flex items-center gap-2">
                       <span className="text-gray-400 text-xs font-medium">Level {userData.level.level} · {userData.level.name}</span>
@@ -257,7 +258,7 @@ export default function DashboardPage() {
             <div className="flex-1">
               <div className="mb-5">
                 <h2 className="text-xl font-black" style={{ color: '#1A1033' }}>Your Missions</h2>
-                <p className="text-sm text-gray-400 mt-0.5">8-week startup operator program — one mission at a time</p>
+                <p className="text-sm text-gray-400 mt-0.5">8-week startup operator program. One mission at a time.</p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -393,7 +394,7 @@ export default function DashboardPage() {
                 transition={{ delay: 0.3 }}
                 className="text-gray-500 text-sm leading-relaxed mb-1"
               >
-                You haven&apos;t unlocked this yet — but you&apos;re on the right path.
+                You haven&apos;t unlocked this yet. Keep going, you&apos;re on the right path.
               </motion.p>
               <motion.p
                 initial={{ opacity: 0 }}

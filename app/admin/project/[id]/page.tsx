@@ -131,7 +131,7 @@ export default function AdminProjectPage() {
         <nav className="flex items-center gap-2 text-sm text-gray-500 mb-6">
           <Link href="/admin/curriculum" className="hover:text-brand-600">Curriculum</Link>
           <ChevronRight size={14} />
-          <span className="text-gray-900 font-medium">{project.title} — Project</span>
+          <span className="text-gray-900 font-medium">{project.title}: Project</span>
         </nav>
 
         <div className="flex items-center justify-between mb-6">

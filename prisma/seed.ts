@@ -60,6 +60,7 @@ async function main() {
       displayName: 'Kunal',
       role: 'learner',
       cohortId: cohort.id,
+      learnerTitle: 'CURIOUS',
     },
   })
 
@@ -70,19 +71,20 @@ async function main() {
       displayName: 'Sabika',
       role: 'learner',
       cohortId: cohort.id,
+      learnerTitle: 'BUILDER',
     },
   })
 
   console.log('Creating weeks...')
   const weeksData = [
-    { number: 1, title: 'Boot Sequence',   description: 'Lay the technical foundation — internet, APIs, tools, and data formats.', isPublished: true,  badgeName: 'Bootloaded',       badgeIcon: '🔧' },
+    { number: 1, title: 'Boot Sequence',   description: 'Lay the technical foundation: internet, APIs, tools, and data formats.', isPublished: true,  badgeName: 'Bootloaded',       badgeIcon: '🔧' },
     { number: 2, title: 'AI in the Wild',  description: 'Explore how AI is reshaping products, workflows, and decision-making.', isPublished: false, badgeName: 'Wired In',         badgeIcon: '🤖' },
     { number: 3, title: 'Data Matters',    description: 'Learn to collect, analyse, and act on data that drives product decisions.', isPublished: false, badgeName: 'In the Loop',      badgeIcon: '📊' },
     { number: 4, title: 'Market Fit',      description: 'Understand customers, competitors, and how to position for growth.', isPublished: false, badgeName: 'Halfway There',     badgeIcon: '🎯' },
     { number: 5, title: 'Build and Ship',  description: 'Develop the skills to prototype, iterate, and deliver fast.', isPublished: false, badgeName: 'Deep Stack',       badgeIcon: '🚀' },
     { number: 6, title: 'Growth Loops',    description: 'Design acquisition and retention loops that scale your product.', isPublished: false, badgeName: 'Growth Mode',      badgeIcon: '📈' },
     { number: 7, title: 'Brand Voice',     description: 'Craft a compelling narrative and communicate your product story.', isPublished: false, badgeName: 'Almost Shipped',   badgeIcon: '✍️' },
-    { number: 8, title: 'Final Deploy',    description: 'Capstone week — present your work and prepare for the real world.', isPublished: false, badgeName: 'Fully Deployed',   badgeIcon: '🌟' },
+    { number: 8, title: 'Final Deploy',    description: 'Capstone week: present your work and prepare for the real world.', isPublished: false, badgeName: 'Fully Deployed',   badgeIcon: '🌟' },
   ]
 
   const weeks: Record<number, string> = {}
@@ -177,7 +179,7 @@ async function main() {
 
   // Subtopic 1-3: JSON — the universal language of APIs
   const sub1_3 = await prisma.subtopic.create({
-    data: { topicId: topic1.id, title: 'JSON — the universal language of APIs', tag: 'tech', sortOrder: 2 },
+    data: { topicId: topic1.id, title: 'JSON: the universal language of APIs', tag: 'tech', sortOrder: 2 },
   })
   const quiz1_3 = await prisma.quiz.create({
     data: { subtopicId: sub1_3.id, status: 'live', passThreshold: 80 },
@@ -243,7 +245,7 @@ async function main() {
   // Subtopic 2-1
   {
     const sub = await prisma.subtopic.create({
-      data: { topicId: topic2.id, title: 'Frontend vs backend — where the work lives', tag: 'tech', sortOrder: 0 },
+      data: { topicId: topic2.id, title: 'Frontend vs backend: where the work lives', tag: 'tech', sortOrder: 0 },
     })
     const quiz = await prisma.quiz.create({ data: { subtopicId: sub.id, status: 'live', passThreshold: 80 } })
     await createQuestions(quiz.id, [
@@ -281,7 +283,7 @@ async function main() {
   // Subtopic 2-2
   {
     const sub = await prisma.subtopic.create({
-      data: { topicId: topic2.id, title: 'Databases and the cloud — where the data lives', tag: 'tech', sortOrder: 1 },
+      data: { topicId: topic2.id, title: 'Databases and the cloud: where the data lives', tag: 'tech', sortOrder: 1 },
     })
     const quiz = await prisma.quiz.create({ data: { subtopicId: sub.id, status: 'live', passThreshold: 80 } })
     await createQuestions(quiz.id, [
@@ -319,7 +321,7 @@ async function main() {
   // Subtopic 2-3
   {
     const sub = await prisma.subtopic.create({
-      data: { topicId: topic2.id, title: 'Version control and environment variables — how you work safely', tag: 'tech', sortOrder: 2 },
+      data: { topicId: topic2.id, title: 'Version control and environment variables: how you work safely', tag: 'tech', sortOrder: 2 },
     })
     const quiz = await prisma.quiz.create({ data: { subtopicId: sub.id, status: 'live', passThreshold: 80 } })
     await createQuestions(quiz.id, [
@@ -362,7 +364,7 @@ async function main() {
   // Subtopic 3-1
   {
     const sub = await prisma.subtopic.create({
-      data: { topicId: topic3.id, title: 'JSON — parse, write, use with APIs', tag: 'tech', sortOrder: 0 },
+      data: { topicId: topic3.id, title: 'JSON: parse, write, use with APIs', tag: 'tech', sortOrder: 0 },
     })
     const quiz = await prisma.quiz.create({ data: { subtopicId: sub.id, status: 'live', passThreshold: 80 } })
     await createQuestions(quiz.id, [
@@ -400,7 +402,7 @@ async function main() {
   // Subtopic 3-2
   {
     const sub = await prisma.subtopic.create({
-      data: { topicId: topic3.id, title: 'CSV — structure, encoding, edge cases', tag: 'tech', sortOrder: 1 },
+      data: { topicId: topic3.id, title: 'CSV: structure, encoding, edge cases', tag: 'tech', sortOrder: 1 },
     })
     const quiz = await prisma.quiz.create({ data: { subtopicId: sub.id, status: 'live', passThreshold: 80 } })
     await createQuestions(quiz.id, [
@@ -438,7 +440,7 @@ async function main() {
   // Subtopic 3-3
   {
     const sub = await prisma.subtopic.create({
-      data: { topicId: topic3.id, title: 'Markdown — docs and READMEs', tag: 'tech', sortOrder: 2 },
+      data: { topicId: topic3.id, title: 'Markdown: docs and READMEs', tag: 'tech', sortOrder: 2 },
     })
     const quiz = await prisma.quiz.create({ data: { subtopicId: sub.id, status: 'live', passThreshold: 80 } })
     await createQuestions(quiz.id, [
@@ -476,7 +478,7 @@ async function main() {
   // Subtopic 3-4
   {
     const sub = await prisma.subtopic.create({
-      data: { topicId: topic3.id, title: 'HTML basics — read page structure', tag: 'tech', sortOrder: 3 },
+      data: { topicId: topic3.id, title: 'HTML basics: read page structure', tag: 'tech', sortOrder: 3 },
     })
     const quiz = await prisma.quiz.create({ data: { subtopicId: sub.id, status: 'live', passThreshold: 80 } })
     await createQuestions(quiz.id, [
@@ -866,7 +868,7 @@ async function main() {
   // Subtopic 5-2
   {
     const sub = await prisma.subtopic.create({
-      data: { topicId: topic5.id, title: 'Config — setting up Git for the first time', tag: 'tech', sortOrder: 1 },
+      data: { topicId: topic5.id, title: 'Config: setting up Git for the first time', tag: 'tech', sortOrder: 1 },
     })
     const quiz = await prisma.quiz.create({ data: { subtopicId: sub.id, status: 'live', passThreshold: 80 } })
     await createQuestions(quiz.id, [
@@ -904,7 +906,7 @@ async function main() {
   // Subtopic 5-3
   {
     const sub = await prisma.subtopic.create({
-      data: { topicId: topic5.id, title: 'Init — starting a repository', tag: 'tech', sortOrder: 2 },
+      data: { topicId: topic5.id, title: 'Init: starting a repository', tag: 'tech', sortOrder: 2 },
     })
     const quiz = await prisma.quiz.create({ data: { subtopicId: sub.id, status: 'live', passThreshold: 80 } })
     await createQuestions(quiz.id, [
@@ -942,7 +944,7 @@ async function main() {
   // Subtopic 5-4
   {
     const sub = await prisma.subtopic.create({
-      data: { topicId: topic5.id, title: 'Clone & status — getting a repo and checking what\'s changed', tag: 'tech', sortOrder: 3 },
+      data: { topicId: topic5.id, title: 'Clone & status: getting a repo and checking what\'s changed', tag: 'tech', sortOrder: 3 },
     })
     const quiz = await prisma.quiz.create({ data: { subtopicId: sub.id, status: 'live', passThreshold: 80 } })
     await createQuestions(quiz.id, [
@@ -980,7 +982,7 @@ async function main() {
   // Subtopic 5-5
   {
     const sub = await prisma.subtopic.create({
-      data: { topicId: topic5.id, title: 'Add & commit — saving your work', tag: 'tech', sortOrder: 4 },
+      data: { topicId: topic5.id, title: 'Add & commit: saving your work', tag: 'tech', sortOrder: 4 },
     })
     const quiz = await prisma.quiz.create({ data: { subtopicId: sub.id, status: 'live', passThreshold: 80 } })
     await createQuestions(quiz.id, [
@@ -1018,7 +1020,7 @@ async function main() {
   // Subtopic 5-6
   {
     const sub = await prisma.subtopic.create({
-      data: { topicId: topic5.id, title: 'Push & pull — syncing with GitHub', tag: 'tech', sortOrder: 5 },
+      data: { topicId: topic5.id, title: 'Push & pull: syncing with GitHub', tag: 'tech', sortOrder: 5 },
     })
     const quiz = await prisma.quiz.create({ data: { subtopicId: sub.id, status: 'live', passThreshold: 80 } })
     await createQuestions(quiz.id, [
@@ -1175,7 +1177,7 @@ async function main() {
   // Subtopic 6-3
   {
     const sub = await prisma.subtopic.create({
-      data: { topicId: topic6.id, title: 'Persona vs narrative — how they work together', tag: 'marketing', sortOrder: 2 },
+      data: { topicId: topic6.id, title: 'Persona vs narrative: how they work together', tag: 'marketing', sortOrder: 2 },
     })
     const quiz = await prisma.quiz.create({ data: { subtopicId: sub.id, status: 'live', passThreshold: 80 } })
     await createQuestions(quiz.id, [

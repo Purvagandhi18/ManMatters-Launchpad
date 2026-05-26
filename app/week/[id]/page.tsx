@@ -106,7 +106,7 @@ function ReflectionPanel({ topicId, topicTitle }: { topicId: string; topicTitle:
           'text-xs font-bold uppercase tracking-wide',
           isApproved ? 'text-emerald-700' : needsRevision ? 'text-amber-700' : 'text-brand-700'
         )}>
-          {isApproved ? 'Reflection Complete' : needsRevision ? 'Needs Revision' : 'Topic Reflection'}
+          {isApproved ? 'Reflection Complete' : needsRevision ? 'Needs Revision' : 'What Did I Learn?'}
         </p>
         {isApproved && reflection?.aiScore != null && (
           <span className="ml-auto text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
@@ -141,9 +141,12 @@ function ReflectionPanel({ topicId, topicTitle }: { topicId: string; topicTitle:
             </p>
           )}
           {!reflection && (
-            <p className="text-xs text-[#6B57B8] mb-2">
-              What did you learn from <strong>{topicTitle}</strong>? Be specific — mention key ideas, surprises, or how you&apos;d apply this.
-            </p>
+            <div className="mb-2">
+              <p className="text-sm font-black tracking-widest text-[#1A1033] mb-1">WHAT DID I LEARN?</p>
+              <p className="text-xs text-[#6B57B8]">
+                Share what you understood from <strong>{topicTitle}</strong>. Cover the key ideas in your own words, be specific, and show you get the fundamentals.
+              </p>
+            </div>
           )}
           <textarea
             value={text}

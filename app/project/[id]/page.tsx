@@ -270,7 +270,7 @@ export default function ProjectPage() {
                     'text-sm font-semibold',
                     grade.scorePct >= 70 ? 'text-green-700' : 'text-amber-700'
                   )}>
-                    {Math.round(grade.scorePct)}% — {grade.scorePct >= 90 ? 'Excellent' : grade.scorePct >= 70 ? 'Good work' : 'Needs improvement'}
+                    {Math.round(grade.scorePct)}%: {grade.scorePct >= 90 ? 'Excellent' : grade.scorePct >= 70 ? 'Good work' : 'Needs improvement'}
                   </p>
                 </div>
 
