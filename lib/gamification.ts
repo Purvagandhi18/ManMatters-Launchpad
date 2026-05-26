@@ -14,6 +14,24 @@ export function getLevelFromXP(xp: number) {
   return LEVELS.findLast(l => xp >= l.minXP) ?? LEVELS[0]
 }
 
+// Aspirational identity titles that evolve with level progression
+export const LEARNER_TITLES: Record<number, string> = {
+  1: 'Curious',
+  2: 'Explorer',
+  3: 'Builder',
+  4: 'Operator',
+  5: 'Catalyst',
+  6: 'Pioneer',
+  7: 'Visionary',
+}
+
+export function getLearnerTitle(levelNum: number, streak = 0): string {
+  const base = LEARNER_TITLES[levelNum] ?? 'Explorer'
+  if (streak >= 4) return `Relentless ${base}`
+  if (streak >= 2) return `Focused ${base}`
+  return base
+}
+
 export async function getUserTotalXP(userId: string): Promise<number> {
   const result = await prisma.xPTransaction.aggregate({
     where: { userId },

@@ -4,19 +4,26 @@ import { useSession } from 'next-auth/react'
 import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from 'framer-motion'
 import { Navbar } from '@/components/learner/Navbar'
 import { WeekCard } from '@/components/learner/WeekCard'
-import { Trophy, Medal, Award, X, Lock, Zap, Flame, Star } from 'lucide-react'
+import { Trophy, Medal, Award, X, Zap, Flame, Star } from 'lucide-react'
 import { formatXP, getInitials } from '@/lib/utils'
 import { staggerContainer } from '@/lib/animations'
+import { getLearnerTitle } from '@/lib/gamification'
 
-// Level-specific ring / accent colours
-const LEVEL_COLORS: Record<number, { ring: string; glow: string; label: string }> = {
-  1: { ring: '#94a3b8', glow: 'rgba(148,163,184,0.35)', label: 'bg-slate-400/20 text-slate-200'   },
-  2: { ring: '#60a5fa', glow: 'rgba(96,165,250,0.35)',  label: 'bg-blue-400/20 text-blue-200'     },
-  3: { ring: '#818cf8', glow: 'rgba(129,140,248,0.40)', label: 'bg-indigo-400/20 text-indigo-200' },
-  4: { ring: '#a78bfa', glow: 'rgba(167,139,250,0.40)', label: 'bg-violet-400/20 text-violet-200' },
-  5: { ring: '#f472b6', glow: 'rgba(244,114,182,0.40)', label: 'bg-pink-400/20 text-pink-200'     },
-  6: { ring: '#fb923c', glow: 'rgba(251,146,60,0.40)',  label: 'bg-orange-400/20 text-orange-200' },
-  7: { ring: '#fbbf24', glow: 'rgba(251,191,36,0.45)',  label: 'bg-amber-400/20 text-amber-200'   },
+const LEVEL_COLORS: Record<number, { ring: string; shadow: string }> = {
+  1: { ring: '#94a3b8', shadow: 'rgba(148,163,184,0.30)' },
+  2: { ring: '#60a5fa', shadow: 'rgba(96,165,250,0.30)'  },
+  3: { ring: '#818cf8', shadow: 'rgba(129,140,248,0.35)' },
+  4: { ring: '#a78bfa', shadow: 'rgba(167,139,250,0.35)' },
+  5: { ring: '#f472b6', shadow: 'rgba(244,114,182,0.35)' },
+  6: { ring: '#fb923c', shadow: 'rgba(251,146,60,0.35)'  },
+  7: { ring: '#fbbf24', shadow: 'rgba(251,191,36,0.40)'  },
+}
+
+function getGreeting() {
+  const h = new Date().getHours()
+  if (h < 12) return 'Good morning'
+  if (h < 17) return 'Good afternoon'
+  return 'Good evening'
 }
 
 interface WeekData {
@@ -72,9 +79,9 @@ export default function DashboardPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/weeks').then((r) => r.json()),
-      fetch('/api/users/me').then((r) => r.json()),
-      fetch('/api/leaderboard').then((r) => r.json()),
+      fetch('/api/weeks').then(r => r.json()),
+      fetch('/api/users/me').then(r => r.json()),
+      fetch('/api/leaderboard').then(r => r.json()),
     ]).then(([w, u, l]) => {
       setWeeks(w)
       setUserData(u)
@@ -85,241 +92,203 @@ export default function DashboardPage() {
 
   if (loading || !userData) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#F8F6FF' }}>
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
           className="w-8 h-8 rounded-full"
-          style={{ border: '3px solid #e0e7ff', borderTopColor: '#4f46e5' }}
+          style={{ border: '3px solid #E4DEFF', borderTopColor: '#5B38F5' }}
         />
       </div>
     )
   }
 
+  const lc        = LEVEL_COLORS[userData.level.level] ?? LEVEL_COLORS[1]
+  const title     = getLearnerTitle(userData.level.level, userData.streak)
+  const firstName = userData.displayName.split(' ')[0]
+  const greeting  = getGreeting()
+  const xpPct     = Math.min(100, ((userData.totalXP - userData.level.minXP) / Math.max(1, userData.level.maxXP - userData.level.minXP)) * 100)
+
   const rankIcons = [
-    <Trophy key="1" size={18} className="text-yellow-500" />,
-    <Medal  key="2" size={18} className="text-gray-400" />,
-    <Award  key="3" size={18} className="text-amber-700" />,
+    <Trophy key="1" size={16} className="text-yellow-500" />,
+    <Medal  key="2" size={16} className="text-gray-400"   />,
+    <Award  key="3" size={16} className="text-amber-700"  />,
   ]
 
-  const xpPct = Math.min(
-    100,
-    ((userData.totalXP - userData.level.minXP) /
-      Math.max(1, userData.level.maxXP - userData.level.minXP)) *
-      100
-  )
-
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navbar user={userData} />
+    <div className="min-h-screen" style={{ background: '#F8F6FF' }}>
+      <Navbar user={userData} title={title} />
 
       <main className="pt-16">
         <div className="max-w-7xl mx-auto px-4 py-8">
 
-          {/* ── Hero ─────────────────────────────────────────────────── */}
-          {(() => {
-            const lc      = LEVEL_COLORS[userData.level.level] ?? LEVEL_COLORS[1]
-            const nextXP  = userData.level.maxXP < Infinity ? userData.level.maxXP : null
-            const xpToNext = nextXP !== null ? nextXP + 1 : null
-            return (
-              <motion.div
-                initial={{ opacity: 0, y: 28 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ type: 'spring', stiffness: 180, damping: 22 }}
-                className="relative rounded-3xl overflow-hidden mb-8 text-white"
-                style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 40%, #7c3aed 100%)' }}
-              >
-                {/* Dot grid */}
-                <div className="absolute inset-0 pointer-events-none opacity-[0.07]"
-                  style={{ backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
+          {/* ── Hero ─────────────────────────────────────────────── */}
+          <motion.div
+            initial={{ opacity: 0, y: 28 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 180, damping: 22 }}
+            className="relative rounded-3xl overflow-hidden mb-8 border"
+            style={{
+              background: 'linear-gradient(145deg, #EDEAFF 0%, #F5F3FF 55%, #FAFAFE 100%)',
+              borderColor: '#E4DEFF',
+            }}
+          >
+            {/* Subtle dot grid */}
+            <div
+              className="absolute inset-0 pointer-events-none opacity-[0.055]"
+              style={{ backgroundImage: 'radial-gradient(circle, #5B38F5 1px, transparent 1px)', backgroundSize: '26px 26px' }}
+            />
+            {/* Floating orbs */}
+            <motion.div
+              animate={{ x: [0, 18, 0], y: [0, -14, 0] }}
+              transition={{ repeat: Infinity, duration: 9, ease: 'easeInOut' }}
+              className="absolute -top-28 -right-16 w-96 h-96 rounded-full pointer-events-none"
+              style={{ background: 'radial-gradient(circle, rgba(91,56,245,0.09) 0%, transparent 70%)' }}
+            />
+            <motion.div
+              animate={{ x: [0, -12, 0], y: [0, 18, 0] }}
+              transition={{ repeat: Infinity, duration: 11, ease: 'easeInOut', delay: 1.5 }}
+              className="absolute -bottom-20 -left-10 w-64 h-64 rounded-full pointer-events-none"
+              style={{ background: 'radial-gradient(circle, rgba(91,56,245,0.06) 0%, transparent 70%)' }}
+            />
 
-                {/* Floating orbs */}
-                <motion.div
-                  animate={{ x: [0, 18, 0], y: [0, -12, 0] }}
-                  transition={{ repeat: Infinity, duration: 7, ease: 'easeInOut' }}
-                  className="absolute -top-24 -left-20 w-80 h-80 rounded-full pointer-events-none"
-                  style={{ background: 'radial-gradient(circle, rgba(255,255,255,0.12) 0%, transparent 70%)' }}
-                />
-                <motion.div
-                  animate={{ x: [0, -14, 0], y: [0, 16, 0] }}
-                  transition={{ repeat: Infinity, duration: 9, ease: 'easeInOut', delay: 1 }}
-                  className="absolute -bottom-20 -right-16 w-72 h-72 rounded-full pointer-events-none"
-                  style={{ background: 'radial-gradient(circle, rgba(255,255,255,0.10) 0%, transparent 70%)' }}
-                />
-                <motion.div
-                  animate={{ scale: [1, 1.1, 1], opacity: [0.15, 0.25, 0.15] }}
-                  transition={{ repeat: Infinity, duration: 5, ease: 'easeInOut', delay: 2 }}
-                  className="absolute top-8 right-1/3 w-40 h-40 rounded-full pointer-events-none"
-                  style={{ background: 'radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 70%)' }}
-                />
+            <div className="relative px-6 pt-8 pb-6 md:px-10">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-6">
 
-                {/* Main content */}
-                <div className="relative px-6 pt-7 pb-5 md:px-10 md:pt-9">
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-6">
-
-                    {/* Avatar + identity */}
-                    <div className="flex items-center gap-5">
-                      {/* Avatar ring */}
-                      <motion.div
-                        initial={{ scale: 0.6, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        transition={{ type: 'spring', stiffness: 260, damping: 20, delay: 0.1 }}
-                        className="relative flex-shrink-0"
-                      >
-                        {/* Glow behind ring */}
-                        <div className="absolute inset-0 rounded-full blur-md"
-                          style={{ background: lc.glow, transform: 'scale(1.3)' }} />
-                        {/* Ring */}
-                        <div className="relative w-20 h-20 rounded-full flex items-center justify-center"
-                          style={{ padding: 3, background: `linear-gradient(135deg, ${lc.ring}, #ffffff30)` }}>
-                          <div className="w-full h-full rounded-full bg-[#4338ca] flex items-center justify-center">
-                            <span className="text-2xl font-black tracking-tight"
-                              style={{ color: lc.ring }}>
-                              {getInitials(userData.displayName)}
-                            </span>
-                          </div>
-                        </div>
-                        {/* Level badge on avatar */}
-                        <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black border-2 border-[#4f46e5]"
-                          style={{ background: lc.ring, color: '#0f0c29' }}>
-                          {userData.level.level}
-                        </div>
-                      </motion.div>
-
-                      {/* Name + level */}
-                      <div>
-                        <motion.p
-                          initial={{ opacity: 0, y: 6 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: 0.18 }}
-                          className="text-xs font-bold uppercase tracking-[0.15em] mb-0.5"
-                          style={{ color: lc.ring }}
-                        >
-                          {userData.level.name}
-                        </motion.p>
-                        <motion.h1
-                          initial={{ opacity: 0, y: 8 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: 0.24, type: 'spring', stiffness: 280, damping: 22 }}
-                          className="text-3xl md:text-4xl font-black tracking-tight text-white"
-                        >
-                          {userData.displayName}
-                        </motion.h1>
-                        <motion.p
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          transition={{ delay: 0.36 }}
-                          className="text-white/40 text-xs mt-0.5"
-                        >
-                          Level {userData.level.level} operator
-                        </motion.p>
-                      </div>
-                    </div>
-
-                    {/* Stat pills — right aligned */}
-                    <div className="sm:ml-auto flex flex-wrap gap-3">
-                      {/* XP stat */}
-                      <motion.div
-                        initial={{ opacity: 0, y: 10, scale: 0.9 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        transition={{ delay: 0.28, type: 'spring', stiffness: 300 }}
-                        className="flex items-center gap-2.5 bg-white/[0.07] backdrop-blur-sm border border-white/10 rounded-2xl px-4 py-3 min-w-[110px]"
-                      >
-                        <div className="w-8 h-8 rounded-xl flex items-center justify-center"
-                          style={{ background: 'rgba(99,102,241,0.25)' }}>
-                          <Zap size={15} className="text-indigo-300" />
-                        </div>
-                        <div>
-                          <p className="text-white font-black text-lg leading-none">
-                            <AnimatedXP value={userData.totalXP} />
-                          </p>
-                          <p className="text-white/40 text-[10px] uppercase tracking-wide mt-0.5">XP earned</p>
-                        </div>
-                      </motion.div>
-
-                      {/* Streak stat */}
-                      <motion.div
-                        initial={{ opacity: 0, y: 10, scale: 0.9 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        transition={{ delay: 0.36, type: 'spring', stiffness: 300 }}
-                        className="flex items-center gap-2.5 bg-white/[0.07] backdrop-blur-sm border border-white/10 rounded-2xl px-4 py-3 min-w-[110px]"
-                      >
-                        <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-orange-500/20">
-                          <Flame size={15} className="text-orange-400" />
-                        </div>
-                        <div>
-                          <p className="text-white font-black text-lg leading-none">
-                            {userData.streak > 0 ? userData.streak : '—'}
-                          </p>
-                          <p className="text-white/40 text-[10px] uppercase tracking-wide mt-0.5">
-                            {userData.streak > 0 ? 'Wk streak' : 'No streak'}
-                          </p>
-                        </div>
-                      </motion.div>
-
-                      {/* Badges stat */}
-                      <motion.div
-                        initial={{ opacity: 0, y: 10, scale: 0.9 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        transition={{ delay: 0.44, type: 'spring', stiffness: 300 }}
-                        className="flex items-center gap-2.5 bg-white/[0.07] backdrop-blur-sm border border-white/10 rounded-2xl px-4 py-3 min-w-[110px]"
-                      >
-                        <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-amber-500/20">
-                          <Star size={15} className="text-amber-400" />
-                        </div>
-                        <div>
-                          <p className="text-white font-black text-lg leading-none">{userData.userBadges.length}</p>
-                          <p className="text-white/40 text-[10px] uppercase tracking-wide mt-0.5">Badges</p>
-                        </div>
-                      </motion.div>
-                    </div>
-                  </div>
-
-                  {/* XP progress bar — full width, bottom of hero */}
+                {/* Avatar + Identity */}
+                <div className="flex items-center gap-5">
                   <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.5 }}
-                    className="mt-6 pt-5 border-t border-white/[0.08]"
+                    initial={{ scale: 0.6, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ type: 'spring', stiffness: 260, damping: 20, delay: 0.1 }}
+                    className="relative flex-shrink-0"
                   >
-                    <div className="flex items-center justify-between text-xs mb-2">
-                      <span className="text-white/50 font-medium">
-                        {userData.totalXP.toLocaleString()} XP
-                      </span>
-                      {xpToNext !== null ? (
-                        <span className="text-white/40">
-                          Next level at {xpToNext.toLocaleString()} XP
-                        </span>
-                      ) : (
-                        <span className="text-amber-400 font-semibold">Max level reached 🏆</span>
-                      )}
+                    <div
+                      className="absolute inset-0 rounded-2xl blur-xl opacity-70 pointer-events-none"
+                      style={{ background: lc.shadow, transform: 'scale(1.5)' }}
+                    />
+                    <div
+                      className="relative w-20 h-20 rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-lg"
+                      style={{ background: `linear-gradient(135deg, ${lc.ring}, #5B38F5)` }}
+                    >
+                      {getInitials(userData.displayName)}
                     </div>
-                    <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
-                      <motion.div
-                        initial={{ width: '0%' }}
-                        animate={{ width: `${xpPct}%` }}
-                        transition={{ duration: 1.4, ease: [0.34, 1.4, 0.64, 1], delay: 0.55 }}
-                        className="h-full rounded-full"
-                        style={{ background: `linear-gradient(90deg, ${lc.ring}cc, ${lc.ring})` }}
-                      />
+                    <div
+                      className="absolute -bottom-1.5 -right-1.5 bg-white rounded-full h-6 px-2 flex items-center text-[10px] font-black shadow border border-gray-100"
+                      style={{ color: lc.ring }}
+                    >
+                      L{userData.level.level}
                     </div>
                   </motion.div>
+
+                  <div>
+                    <motion.div
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.18 }}
+                      className="flex items-center gap-2 mb-1"
+                    >
+                      <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-brand-600">
+                        {title}
+                      </span>
+                      {userData.streak >= 2 && (
+                        <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-orange-600 bg-orange-50 border border-orange-100 rounded-full px-2 py-0.5">
+                          🔥 {userData.streak}w streak
+                        </span>
+                      )}
+                    </motion.div>
+
+                    <motion.h1
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.22, type: 'spring', stiffness: 280, damping: 22 }}
+                      className="text-3xl md:text-4xl font-black tracking-tight"
+                      style={{ color: '#1A1033' }}
+                    >
+                      {firstName}
+                    </motion.h1>
+
+                    <motion.p
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.34 }}
+                      className="text-gray-400 text-xs mt-0.5"
+                    >
+                      {greeting} · {userData.level.name}
+                    </motion.p>
+                  </div>
+                </div>
+
+                {/* Stat cards */}
+                <div className="sm:ml-auto flex flex-wrap gap-3">
+                  {[
+                    { icon: <Zap size={15} className="text-brand-600" />, bg: 'bg-brand-50', value: <AnimatedXP value={userData.totalXP} />, label: 'XP Earned',  delay: 0.28 },
+                    { icon: <Flame size={15} className="text-orange-500" />, bg: 'bg-orange-50', value: userData.streak > 0 ? `${userData.streak}w` : '—', label: userData.streak > 0 ? 'Week streak' : 'Start a streak', delay: 0.36 },
+                    { icon: <Star size={15} className="text-amber-500" />, bg: 'bg-amber-50', value: userData.userBadges.length, label: 'Badges earned', delay: 0.44 },
+                  ].map((s, i) => (
+                    <motion.div
+                      key={i}
+                      initial={{ opacity: 0, y: 10, scale: 0.92 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      transition={{ delay: s.delay, type: 'spring', stiffness: 300 }}
+                      className="flex items-center gap-2.5 bg-white/85 backdrop-blur-sm border border-white rounded-2xl px-4 py-3 min-w-[110px] shadow-sm"
+                    >
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${s.bg}`}>
+                        {s.icon}
+                      </div>
+                      <div>
+                        <p className="font-black text-lg leading-none" style={{ color: '#1A1033' }}>{s.value}</p>
+                        <p className="text-gray-400 text-[10px] uppercase tracking-wide mt-0.5">{s.label}</p>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+
+              {/* XP Progress bar */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.5 }}
+                className="mt-6 pt-5"
+                style={{ borderTop: '1px solid #E4DEFF' }}
+              >
+                <div className="flex items-center justify-between text-xs mb-2">
+                  <span className="font-medium text-gray-500">{userData.totalXP.toLocaleString()} XP</span>
+                  {userData.level.maxXP < Infinity ? (
+                    <span className="text-gray-400">
+                      {(userData.level.maxXP + 1).toLocaleString()} XP to {userData.level.name === 'Rookie' ? 'Builder' : 'next level'}
+                    </span>
+                  ) : (
+                    <span className="font-semibold" style={{ color: lc.ring }}>Max level reached 🏆</span>
+                  )}
+                </div>
+                <div className="h-2 rounded-full overflow-hidden" style={{ background: '#E4DEFF' }}>
+                  <motion.div
+                    initial={{ width: '0%' }}
+                    animate={{ width: `${xpPct}%` }}
+                    transition={{ duration: 1.4, ease: [0.34, 1.4, 0.64, 1], delay: 0.55 }}
+                    className="h-full rounded-full"
+                    style={{ background: `linear-gradient(90deg, #5B38F5, ${lc.ring})` }}
+                  />
                 </div>
               </motion.div>
-            )
-          })()}
+            </div>
+          </motion.div>
 
           <div className="flex flex-col lg:flex-row gap-8">
-            {/* Week grid */}
+
+            {/* ── Missions grid ─────────────────────────────────── */}
             <div className="flex-1">
-              <motion.h2
+              <motion.div
                 initial={{ opacity: 0, x: -12 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.2 }}
-                className="text-xl font-bold text-gray-900 mb-4"
+                className="mb-5"
               >
-                Your 8-Week Program
-              </motion.h2>
+                <h2 className="text-xl font-black" style={{ color: '#1A1033' }}>Your Missions</h2>
+                <p className="text-sm text-gray-400 mt-0.5">8-week startup operator program — one mission at a time</p>
+              </motion.div>
 
               <motion.div
                 variants={staggerContainer}
@@ -343,29 +312,30 @@ export default function DashboardPage() {
               </motion.div>
             </div>
 
-            {/* Sidebar */}
+            {/* ── Sidebar ───────────────────────────────────────── */}
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.35, type: 'spring', stiffness: 200, damping: 24 }}
-              className="lg:w-72 space-y-6"
+              className="lg:w-72 space-y-5"
             >
-              <div className="bg-white rounded-2xl border border-gray-200 p-6">
-                <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
-                  <Trophy size={18} className="text-yellow-500" /> Top Learners
+              {/* Top operators */}
+              <div className="bg-white rounded-2xl p-5 shadow-sm" style={{ border: '1px solid #E4DEFF' }}>
+                <h3 className="font-bold mb-4 flex items-center gap-2 text-sm" style={{ color: '#1A1033' }}>
+                  <Trophy size={16} className="text-yellow-500" /> Top Operators
                 </h3>
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                   {leaderboard.map((entry, i) => (
                     <motion.div
                       key={entry.id}
                       initial={{ opacity: 0, x: 12 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: 0.45 + i * 0.08 }}
-                      className={`flex items-center gap-3 p-2 rounded-xl ${entry.id === currentUserId ? 'bg-brand-50' : ''}`}
+                      className={`flex items-center gap-3 p-2 rounded-xl transition-colors ${entry.id === currentUserId ? 'bg-brand-50' : 'hover:bg-gray-50'}`}
                     >
-                      <div className="w-7 flex items-center justify-center">{rankIcons[i]}</div>
+                      <div className="w-6 flex items-center justify-center">{rankIcons[i]}</div>
                       <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-semibold truncate ${entry.id === currentUserId ? 'text-brand-700' : 'text-gray-900'}`}>
+                        <p className={`text-sm font-semibold truncate ${entry.id === currentUserId ? 'text-brand-700' : ''}`} style={entry.id !== currentUserId ? { color: '#1A1033' } : {}}>
                           {entry.displayName}{entry.id === currentUserId ? ' (you)' : ''}
                         </p>
                         <p className="text-xs text-gray-400">{entry.level.name}</p>
@@ -376,19 +346,21 @@ export default function DashboardPage() {
                 </div>
               </div>
 
+              {/* Badges */}
               {userData.userBadges.length > 0 && (
-                <div className="bg-white rounded-2xl border border-gray-200 p-6">
-                  <h3 className="font-bold text-gray-900 mb-4">Recent Badges</h3>
+                <div className="bg-white rounded-2xl p-5 shadow-sm" style={{ border: '1px solid #E4DEFF' }}>
+                  <h3 className="font-bold mb-4 text-sm" style={{ color: '#1A1033' }}>Badges Earned</h3>
                   <div className="flex flex-wrap gap-2">
-                    {userData.userBadges.slice(0, 6).map((ub, i) => (
+                    {userData.userBadges.slice(0, 8).map((ub, i) => (
                       <motion.div
                         key={i}
                         initial={{ scale: 0, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
-                        transition={{ delay: 0.5 + i * 0.07, type: 'spring', stiffness: 400, damping: 18 }}
+                        transition={{ delay: 0.5 + i * 0.06, type: 'spring', stiffness: 400, damping: 18 }}
                         whileHover={{ scale: 1.18, rotate: [0, -8, 8, 0] }}
                         title={ub.badge.name}
-                        className="w-11 h-11 bg-gradient-to-br from-brand-50 to-purple-50 border border-brand-100 rounded-xl flex items-center justify-center text-xl cursor-default shadow-sm"
+                        className="w-11 h-11 rounded-xl flex items-center justify-center text-xl cursor-default shadow-sm"
+                        style={{ background: '#F0ECFF', border: '1px solid #E4DEFF' }}
                       >
                         {ub.badge.iconEmoji}
                       </motion.div>
@@ -396,20 +368,37 @@ export default function DashboardPage() {
                   </div>
                 </div>
               )}
+
+              {/* Momentum card */}
+              <div className="bg-white rounded-2xl p-5 shadow-sm" style={{ border: '1px solid #E4DEFF' }}>
+                <h3 className="font-bold mb-3 text-sm" style={{ color: '#1A1033' }}>Your momentum</h3>
+                <div className="space-y-2">
+                  {[
+                    { label: 'Consistency',  value: userData.streak >= 3 ? 'On a roll 🔥' : userData.streak >= 1 ? 'Building it' : 'Just starting' },
+                    { label: 'XP pace',      value: userData.totalXP >= 1000 ? 'Strong' : 'Warming up' },
+                    { label: 'Level status', value: `${Math.round(xpPct)}% to next` },
+                  ].map(item => (
+                    <div key={item.label} className="flex justify-between items-center text-xs">
+                      <span className="text-gray-400">{item.label}</span>
+                      <span className="font-semibold text-brand-600">{item.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </motion.div>
           </div>
         </div>
       </main>
 
-      {/* Lock modal */}
+      {/* ── Lock modal ────────────────────────────────────────────── */}
       <AnimatePresence>
         {lockModal && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
+            style={{ background: 'rgba(26,16,51,0.45)' }}
             onClick={() => setLockModal(false)}
           >
             <motion.div
@@ -418,7 +407,7 @@ export default function DashboardPage() {
               exit={{ scale: 0.9, opacity: 0 }}
               transition={{ type: 'spring', stiffness: 320, damping: 22 }}
               className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center relative"
-              onClick={(e) => e.stopPropagation()}
+              onClick={e => e.stopPropagation()}
             >
               <button
                 onClick={() => setLockModal(false)}
@@ -428,46 +417,49 @@ export default function DashboardPage() {
               </button>
 
               <motion.div
-                animate={{ rotate: [0, -10, 10, -7, 7, 0], y: [0, -5, 0] }}
-                transition={{ duration: 0.6, delay: 0.15 }}
-                className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 mb-5 shadow-inner"
+                animate={{ rotate: [0, -12, 12, -8, 8, 0], y: [0, -6, 0] }}
+                transition={{ duration: 0.55, delay: 0.15 }}
+                className="inline-flex items-center justify-center w-20 h-20 rounded-2xl mb-5"
+                style={{ background: '#F0ECFF' }}
               >
-                <Lock size={32} className="text-gray-500" />
+                <span className="text-4xl">🔒</span>
               </motion.div>
 
               <motion.h3
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
-                className="text-xl font-black text-gray-900 mb-2"
+                className="text-xl font-black mb-2"
+                style={{ color: '#1A1033' }}
               >
-                Mission locked. 🔒
+                Mission locked.
               </motion.h3>
               <motion.p
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ delay: 0.32 }}
+                transition={{ delay: 0.3 }}
                 className="text-gray-500 text-sm leading-relaxed mb-1"
               >
-                You&apos;re not ready for this level yet — but you will be soon.
+                You haven&apos;t unlocked this yet — but you&apos;re on the right path.
               </motion.p>
               <motion.p
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ delay: 0.44 }}
+                transition={{ delay: 0.42 }}
                 className="text-gray-400 text-xs mb-6"
               >
-                Crush your current track to unlock the next mission. More startup quests incoming.
+                Each mission builds on the last. Complete your current track to advance.
               </motion.p>
 
               <motion.button
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.55 }}
+                transition={{ delay: 0.52 }}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.97 }}
                 onClick={() => setLockModal(false)}
-                className="w-full bg-gradient-to-r from-brand-600 to-purple-600 text-white font-semibold py-3 rounded-xl hover:opacity-90 transition-opacity text-sm"
+                className="w-full text-white font-semibold py-3 rounded-xl text-sm shadow-lg"
+                style={{ background: 'linear-gradient(135deg, #5B38F5, #7C3AED)' }}
               >
                 Back to my mission →
               </motion.button>

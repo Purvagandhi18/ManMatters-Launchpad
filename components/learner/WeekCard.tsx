@@ -1,8 +1,7 @@
 'use client'
 import { motion, useAnimation } from 'framer-motion'
-import { Lock, ChevronRight, CheckCircle2 } from 'lucide-react'
+import { CheckCircle2, ChevronRight, Rocket } from 'lucide-react'
 import Link from 'next/link'
-import { cn } from '@/lib/utils'
 import { fadeUp } from '@/lib/animations'
 
 interface WeekCardProps {
@@ -28,147 +27,158 @@ interface WeekCardProps {
 export function WeekCard({ week, userProgress, isLocked, onLockClick }: WeekCardProps) {
   const lockControls = useAnimation()
 
-  const allSubtopics = week.topics.flatMap((t) => t.subtopics)
-  const completedCount = allSubtopics.filter(
-    (s) => s.userProgress.length > 0 && (s.userProgress[0].quizPassed || s.userProgress[0].completedAt)
-  ).length
-  const totalCount = allSubtopics.length
-  const pct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0
-  const isCompleted = userProgress?.isCompleted ?? false
+  const allSubtopics    = week.topics.flatMap(t => t.subtopics)
+  const completedCount  = allSubtopics.filter(s => s.userProgress.length > 0 && (s.userProgress[0].quizPassed || s.userProgress[0].completedAt)).length
+  const totalCount      = allSubtopics.length
+  const pct             = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0
+  const isCompleted     = userProgress?.isCompleted ?? false
+  const isStarted       = completedCount > 0
 
   async function handleLockedClick() {
-    // Shake the lock then call parent
-    await lockControls.start({
-      x: [0, -10, 10, -8, 8, -4, 4, 0],
-      transition: { duration: 0.45 },
-    })
+    await lockControls.start({ x: [0, -10, 10, -8, 8, -4, 4, 0], transition: { duration: 0.42 } })
     onLockClick?.()
   }
 
-  /* ── LOCKED CARD ─────────────────────────────────────────────── */
+  /* ── LOCKED ─────────────────────────────────────────────────── */
   if (isLocked) {
     return (
       <motion.button
         variants={fadeUp}
         onClick={handleLockedClick}
-        className="relative w-full text-left bg-white border-2 border-gray-200 rounded-2xl p-6 cursor-pointer overflow-hidden group"
+        className="relative w-full text-left rounded-2xl p-6 cursor-pointer overflow-hidden group"
+        style={{
+          background: 'linear-gradient(145deg, #F8F7FF, #F2EFFF)',
+          border: '1.5px solid #E4DEFF',
+        }}
         whileHover={{ scale: 1.01 }}
         transition={{ type: 'spring', stiffness: 300, damping: 24 }}
       >
         {/* Shimmer sweep */}
-        <span className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out bg-gradient-to-r from-transparent via-white/60 to-transparent pointer-events-none" />
+        <span className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out bg-gradient-to-r from-transparent via-white/50 to-transparent pointer-events-none" />
 
-        {/* Pulsing lock */}
-        <div className="absolute inset-0 flex items-center justify-center rounded-2xl z-10">
-          <motion.div
-            animate={{ scale: [1, 1.08, 1], opacity: [0.7, 1, 0.7] }}
-            transition={{ repeat: Infinity, duration: 2.2, ease: 'easeInOut' }}
-            className="bg-gray-100 rounded-full p-3 group-hover:bg-gray-200 transition-colors"
-          >
-            <motion.div animate={lockControls}>
-              <Lock size={22} className="text-gray-400" />
-            </motion.div>
-          </motion.div>
-        </div>
-
-        {/* Blurred content behind */}
-        <div className="blur-[3px] opacity-50 select-none pointer-events-none">
-          <div className="flex items-center gap-3 mb-3">
+        {/* Content (blurred) */}
+        <div className="blur-[2px] opacity-40 select-none pointer-events-none">
+          <div className="flex items-center gap-3 mb-2">
             <span className="text-2xl">{week.badgeIcon ?? '📚'}</span>
             <div>
-              <p className="text-xs text-gray-500 font-medium">WEEK {week.number}</p>
-              <h3 className="font-bold text-gray-900">{week.title}</h3>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-brand-400">Mission {week.number}</p>
+              <h3 className="font-black text-sm" style={{ color: '#1A1033' }}>{week.title}</h3>
             </div>
           </div>
-          <p className="text-sm text-gray-500 line-clamp-2">{week.description}</p>
-          <div className="mt-4 h-1.5 bg-gray-100 rounded-full" />
+          <p className="text-xs text-gray-400 line-clamp-2">{week.description}</p>
+        </div>
+
+        {/* Lock overlay */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+          <motion.div
+            animate={lockControls}
+            className="flex flex-col items-center gap-1.5"
+          >
+            <motion.div
+              animate={{ scale: [1, 1.07, 1], opacity: [0.7, 1, 0.7] }}
+              transition={{ repeat: Infinity, duration: 2.5, ease: 'easeInOut' }}
+              className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow"
+              style={{ background: '#EDE9FF', border: '1px solid #E4DEFF' }}
+            >
+              <span className="text-lg">🔒</span>
+            </motion.div>
+            <p className="text-[10px] font-bold text-brand-400 tracking-wide uppercase">Locked</p>
+          </motion.div>
         </div>
       </motion.button>
     )
   }
 
-  /* ── UNLOCKED CARD ───────────────────────────────────────────── */
+  /* ── UNLOCKED ───────────────────────────────────────────────── */
   return (
     <motion.div variants={fadeUp}>
       <Link href={`/week/${week.id}`}>
         <motion.div
-          className={cn(
-            'w-full bg-white border-2 rounded-2xl p-6 cursor-pointer group relative overflow-hidden',
-            isCompleted ? 'border-green-400' : 'border-brand-500'
-          )}
+          className="w-full bg-white rounded-2xl p-6 cursor-pointer group relative overflow-hidden"
+          style={{
+            border: isCompleted ? '1.5px solid #10B981' : '1.5px solid #E4DEFF',
+            boxShadow: '0 2px 12px rgba(91,56,245,0.06)',
+          }}
           whileHover={{
-            y: -5,
+            y: -4,
             boxShadow: isCompleted
-              ? '0 16px 36px -6px rgba(16,185,129,0.18)'
-              : '0 16px 36px -6px rgba(79,70,229,0.18)',
+              ? '0 16px 40px -8px rgba(16,185,129,0.18)'
+              : '0 16px 40px -8px rgba(91,56,245,0.16)',
           }}
           transition={{ type: 'spring', stiffness: 300, damping: 22 }}
         >
-          {/* Hover glow tint */}
+          {/* Top accent line */}
           <div
-            className={cn(
-              'absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-2xl pointer-events-none',
-              isCompleted ? 'bg-green-50/40' : 'bg-brand-50/40'
-            )}
+            className="absolute top-0 left-0 right-0 h-0.5 rounded-t-2xl"
+            style={{ background: isCompleted ? '#10B981' : 'linear-gradient(90deg, #5B38F5, #7C3AED)' }}
           />
 
-          <div className="flex items-start justify-between mb-4 relative">
+          {/* Hover tint */}
+          <div
+            className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-2xl pointer-events-none"
+            style={{ background: isCompleted ? 'rgba(16,185,129,0.03)' : 'rgba(91,56,245,0.03)' }}
+          />
+
+          <div className="flex items-start justify-between mb-3 relative">
             <div className="flex items-center gap-3">
               <motion.span
                 className="text-2xl"
                 whileHover={{ rotate: [0, -10, 10, 0], scale: 1.15 }}
-                transition={{ duration: 0.4 }}
+                transition={{ duration: 0.35 }}
               >
                 {week.badgeIcon ?? '📚'}
               </motion.span>
               <div>
                 <p
-                  className={cn(
-                    'text-xs font-semibold uppercase tracking-wide',
-                    isCompleted ? 'text-green-600' : 'text-brand-600'
-                  )}
+                  className="text-[10px] font-bold uppercase tracking-widest mb-0.5"
+                  style={{ color: isCompleted ? '#10B981' : '#5B38F5' }}
                 >
-                  Week {week.number}
+                  Mission {week.number}
                 </p>
-                <h3 className="font-bold text-gray-900 group-hover:text-brand-700 transition-colors">
+                <h3 className="font-black text-sm group-hover:text-brand-700 transition-colors" style={{ color: '#1A1033' }}>
                   {week.title}
                 </h3>
               </div>
             </div>
+
             {isCompleted ? (
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-              >
-                <CheckCircle2 size={20} className="text-green-500 flex-shrink-0" />
+              <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 400, damping: 20 }}>
+                <CheckCircle2 size={18} className="text-emerald-500 flex-shrink-0" />
               </motion.div>
             ) : (
               <motion.div
                 animate={{ x: [0, 4, 0] }}
                 transition={{ repeat: Infinity, duration: 1.8, ease: 'easeInOut' }}
               >
-                <ChevronRight size={20} className="text-gray-400 group-hover:text-brand-600 transition-colors flex-shrink-0" />
+                <ChevronRight size={18} className="text-gray-300 group-hover:text-brand-500 transition-colors flex-shrink-0" />
               </motion.div>
             )}
           </div>
 
-          <p className="text-sm text-gray-500 mb-4 line-clamp-2 relative">{week.description}</p>
+          <p className="text-xs text-gray-400 mb-4 line-clamp-2 relative leading-relaxed">{week.description}</p>
 
-          {/* Animated progress bar */}
-          <div className="space-y-1.5 relative">
-            <div className="flex justify-between text-xs text-gray-500">
-              <span>{completedCount} / {totalCount} subtopics</span>
-              <span>{pct}%</span>
+          {/* Progress + CTA */}
+          <div className="space-y-2 relative">
+            <div className="flex justify-between text-[10px] font-medium">
+              <span className="text-gray-400">{completedCount}/{totalCount} subtopics complete</span>
+              <span style={{ color: isCompleted ? '#10B981' : '#5B38F5' }}>{pct}%</span>
             </div>
-            <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#F0ECFF' }}>
               <motion.div
-                className={cn('h-full rounded-full', isCompleted ? 'bg-green-500' : '')}
-                style={!isCompleted ? { background: 'linear-gradient(90deg, #6366f1, #7c3aed)' } : {}}
+                className="h-full rounded-full"
+                style={{ background: isCompleted ? '#10B981' : 'linear-gradient(90deg, #5B38F5, #7C3AED)' }}
                 initial={{ width: '0%' }}
                 animate={{ width: `${pct}%` }}
                 transition={{ duration: 0.9, ease: [0.34, 1.2, 0.64, 1] }}
               />
+            </div>
+
+            {/* CTA label */}
+            <div className="flex items-center justify-end gap-1 mt-1">
+              <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: isCompleted ? '#10B981' : '#5B38F5' }}>
+                {isCompleted ? 'Mission complete' : isStarted ? 'Continue mission' : 'Start mission'}
+              </span>
+              {!isCompleted && <Rocket size={10} style={{ color: '#5B38F5' }} />}
             </div>
           </div>
         </motion.div>

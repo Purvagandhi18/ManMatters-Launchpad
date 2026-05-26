@@ -4,6 +4,20 @@
 
 @layer base {
   * { box-sizing: border-box; }
+
+  :root {
+    --bg-page:      #F8F6FF;
+    --bg-hero:      linear-gradient(145deg, #EDEAFF 0%, #F5F3FF 50%, #FAFAFE 100%);
+    --border-soft:  #E4DEFF;
+    --text-ink:     #1A1033;
+    --brand-primary: #5B38F5;
+  }
+}
+
+@layer utilities {
+  .page-bg   { background: var(--bg-page); }
+  .ink       { color: var(--text-ink); }
+  .border-soft { border-color: var(--border-soft); }
 }
 
 @layer utilities {
