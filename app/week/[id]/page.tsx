@@ -14,7 +14,6 @@ interface SubtopicData {
   description: string
   tag: string
   sortOrder: number
-  references: { id: string; title: string; url: string; refType: string }[]
   quiz: { id: string; status: string; passThreshold: number } | null
   project: { id: string; title: string; isPublished: boolean } | null
   userProgress: {
@@ -30,6 +29,7 @@ interface TopicData {
   title: string
   tag: string
   sortOrder: number
+  references: { id: string; title: string; url: string; refType: string }[]
   subtopics: SubtopicData[]
 }
 
@@ -223,9 +223,28 @@ function TopicCard({ topic, onQuiz, onProject }: {
         </div>
       </button>
 
-      {/* Subtopics */}
+      {/* Subtopics + resources */}
       {expanded && (
         <div className="border-t border-[#F0ECFF]">
+          {/* Topic-level resources */}
+          {topic.references.length > 0 && (
+            <div className="px-5 py-3 flex flex-wrap gap-3 bg-[#FAFAFE] border-b border-[#F0ECFF]">
+              {topic.references.map(ref => (
+                <a
+                  key={ref.id}
+                  href={ref.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs text-brand-600 hover:text-brand-700 hover:underline font-medium"
+                >
+                  <ExternalLink size={11} />
+                  {ref.title}
+                  <span className="text-[10px] text-gray-400 font-normal">{ref.refType}</span>
+                </a>
+              ))}
+            </div>
+          )}
+
           {topic.subtopics.map((subtopic, idx) => {
             const progress         = subtopic.userProgress[0]
             const isQuizPassed     = progress?.quizPassed
@@ -256,23 +275,6 @@ function TopicCard({ topic, onQuiz, onProject }: {
                   </p>
                   {subtopic.description && (
                     <p className="text-xs text-gray-400 mt-0.5 line-clamp-2">{subtopic.description}</p>
-                  )}
-                  {subtopic.references.length > 0 && (
-                    <div className="flex gap-3 mt-1.5 flex-wrap">
-                      {subtopic.references.map(ref => (
-                        <a
-                          key={ref.id}
-                          href={ref.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 hover:underline"
-                          onClick={e => e.stopPropagation()}
-                        >
-                          <ExternalLink size={10} />
-                          {ref.title}
-                        </a>
-                      ))}
-                    </div>
                   )}
                 </div>
 

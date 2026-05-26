@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from 'framer-motion'
-import { CheckCircle2, XCircle, ChevronLeft, ChevronRight, RotateCcw, ArrowRight, Zap } from 'lucide-react'
+import { CheckCircle2, XCircle, ChevronLeft, ChevronRight, ArrowRight, Zap } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
 import { LevelUpOverlay } from '@/components/ui/LevelUpOverlay'
@@ -283,14 +283,10 @@ export default function QuizPage() {
               transition={{ delay: 0.6 }}
               className="flex gap-3"
             >
-              {!result.passed && !attemptBlocked && (
-                <Button
-                  variant="secondary"
-                  onClick={() => { setAnswers({}); setCurrentQ(0); setResult(null); setPhase('taking') }}
-                  className="flex-1"
-                >
-                  <RotateCcw size={16} className="mr-2" /> Retake Quiz
-                </Button>
+              {!result.passed && (
+                <p className="text-xs text-gray-400 text-center py-1 flex-1 self-center">
+                  Contact your admin to request a retry.
+                </p>
               )}
               <Button onClick={() => router.back()} className="flex-1">
                 <ArrowRight size={16} className="mr-2" />

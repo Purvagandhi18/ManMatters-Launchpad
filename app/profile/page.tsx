@@ -104,6 +104,12 @@ export default function ProfilePage() {
                     : <span className="w-full h-full flex items-center justify-center text-white text-2xl font-bold">{getInitials(userData.displayName)}</span>
                   }
                 </div>
+                {/* Most recently earned badge */}
+                {userData.userBadges[0] && (
+                  <div className="absolute -top-2 -right-2 bg-white rounded-full w-7 h-7 flex items-center justify-center text-sm shadow border border-gray-100" title={userData.userBadges[0].badge.name}>
+                    {userData.userBadges[0].badge.iconEmoji}
+                  </div>
+                )}
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploadingPhoto}

@@ -21,6 +21,7 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
               project: { select: { id: true, title: true } },
             },
           },
+          references: { orderBy: { sortOrder: 'asc' } },
         },
       },
     },

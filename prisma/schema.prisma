@@ -66,6 +66,7 @@ model Topic {
 
   subtopics   Subtopic[]
   reflections TopicReflection[]
+  references  Reference[]
 
   @@map("topics")
 }
@@ -79,22 +80,24 @@ model Subtopic {
   tag         String @default("tech")
   sortOrder   Int    @default(0)
 
-  references   Reference[]
   quiz         Quiz?
   project      Project?
   userProgress UserSubtopicProgress[]
+  references   Reference[]
 
   @@map("subtopics")
 }
 
 model Reference {
-  id         String   @id @default(cuid())
-  subtopicId String
-  subtopic   Subtopic @relation(fields: [subtopicId], references: [id], onDelete: Cascade)
+  id         String    @id @default(cuid())
+  topicId    String?
+  topic      Topic?    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  subtopicId String?
+  subtopic   Subtopic? @relation(fields: [subtopicId], references: [id], onDelete: Cascade)
   title      String
   url        String
-  refType    String   @default("article")
-  sortOrder  Int      @default(0)
+  refType    String    @default("article")
+  sortOrder  Int       @default(0)
 
   @@map("references")
 }

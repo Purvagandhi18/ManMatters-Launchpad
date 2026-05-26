@@ -130,10 +130,7 @@ export default function DashboardPage() {
         <div className="max-w-7xl mx-auto px-4 py-8">
 
           {/* ── Hero ─────────────────────────────────────────────── */}
-          <motion.div
-            initial={{ opacity: 0, y: 28 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ type: 'spring', stiffness: 180, damping: 22 }}
+          <div
             className="relative rounded-3xl overflow-hidden mb-8 border"
             style={{
               background: 'linear-gradient(145deg, #EDEAFF 0%, #F5F3FF 55%, #FAFAFE 100%)',
@@ -145,18 +142,9 @@ export default function DashboardPage() {
               className="absolute inset-0 pointer-events-none opacity-[0.055]"
               style={{ backgroundImage: 'radial-gradient(circle, #5B38F5 1px, transparent 1px)', backgroundSize: '26px 26px' }}
             />
-            {/* Floating orbs */}
-            <motion.div
-              animate={{ x: [0, 18, 0], y: [0, -14, 0] }}
-              transition={{ repeat: Infinity, duration: 9, ease: 'easeInOut' }}
-              className="absolute -top-28 -right-16 w-96 h-96 rounded-full pointer-events-none"
-              style={{ background: 'radial-gradient(circle, rgba(91,56,245,0.09) 0%, transparent 70%)' }}
-            />
-            <motion.div
-              animate={{ x: [0, -12, 0], y: [0, 18, 0] }}
-              transition={{ repeat: Infinity, duration: 11, ease: 'easeInOut', delay: 1.5 }}
-              className="absolute -bottom-20 -left-10 w-64 h-64 rounded-full pointer-events-none"
-              style={{ background: 'radial-gradient(circle, rgba(91,56,245,0.06) 0%, transparent 70%)' }}
+            {/* Static orbs — no CPU repaint */}
+            <div className="absolute -top-28 -right-16 w-96 h-96 rounded-full pointer-events-none"
+              style={{ background: 'radial-gradient(circle, rgba(91,56,245,0.08) 0%, transparent 70%)' }}
             />
 
             <div className="relative px-6 pt-8 pb-6 md:px-10">
@@ -183,42 +171,38 @@ export default function DashboardPage() {
                         : <span className="w-full h-full flex items-center justify-center text-white font-black text-2xl">{getInitials(userData.displayName)}</span>
                       }
                     </div>
-                    <div
-                      className="absolute -bottom-1.5 -right-1.5 bg-white rounded-full h-6 px-2 flex items-center text-[10px] font-black shadow border border-gray-100"
-                      style={{ color: lc.ring }}
-                    >
-                      L{userData.level.level}
-                    </div>
+                    {userData.userBadges[0] ? (
+                      <div className="absolute -bottom-1.5 -right-1.5 bg-white rounded-full w-7 h-7 flex items-center justify-center text-base shadow border border-gray-100" title={userData.userBadges[0].badge.name}>
+                        {userData.userBadges[0].badge.iconEmoji}
+                      </div>
+                    ) : (
+                      <div
+                        className="absolute -bottom-1.5 -right-1.5 bg-white rounded-full h-6 px-2 flex items-center text-[10px] font-black shadow border border-gray-100"
+                        style={{ color: lc.ring }}
+                      >
+                        L{userData.level.level}
+                      </div>
+                    )}
                   </motion.div>
 
                   <div>
-                    <motion.div
+                    <motion.h1
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.18, type: 'spring', stiffness: 280, damping: 22 }}
-                      className="flex items-end gap-3 mb-0.5"
+                      transition={{ delay: 0.18 }}
+                      className="font-black uppercase tracking-[0.18em] leading-none mb-1.5"
+                      style={{ fontSize: 'clamp(1.6rem, 3.5vw, 2.5rem)', color: '#1A1033' }}
                     >
-                      <span
-                        className="font-black uppercase tracking-[0.22em] leading-none"
-                        style={{ fontSize: 'clamp(1.75rem, 4vw, 2.75rem)', color: '#1A1033' }}
-                      >
-                        {title}
-                      </span>
+                      {title} {firstName}
+                    </motion.h1>
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-400 text-xs font-medium">Level {userData.level.level} · {userData.level.name}</span>
                       {userData.streak >= 2 && (
-                        <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-orange-600 bg-orange-50 border border-orange-100 rounded-full px-2 py-0.5 mb-1">
-                          🔥 {userData.streak}w
+                        <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-orange-600 bg-orange-50 border border-orange-100 rounded-full px-2 py-0.5">
+                          🔥 {userData.streak}w streak
                         </span>
                       )}
-                    </motion.div>
-
-                    <motion.p
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: 0.3 }}
-                      className="text-gray-500 text-sm font-medium"
-                    >
-                      {firstName} · Level {userData.level.level}
-                    </motion.p>
+                    </div>
                   </div>
                 </div>
 
@@ -229,11 +213,8 @@ export default function DashboardPage() {
                     { icon: <Flame size={15} className="text-orange-500" />, bg: 'bg-orange-50', value: userData.streak > 0 ? `${userData.streak}w` : '—', label: userData.streak > 0 ? 'Week streak' : 'Start a streak', delay: 0.36 },
                     { icon: <Star size={15} className="text-amber-500" />, bg: 'bg-amber-50', value: userData.userBadges.length, label: 'Badges earned', delay: 0.44 },
                   ].map((s, i) => (
-                    <motion.div
+                    <div
                       key={i}
-                      initial={{ opacity: 0, y: 10, scale: 0.92 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      transition={{ delay: s.delay, type: 'spring', stiffness: 300 }}
                       className="flex items-center gap-2.5 bg-white/85 backdrop-blur-sm border border-white rounded-2xl px-4 py-3 min-w-[110px] shadow-sm"
                     >
                       <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${s.bg}`}>
@@ -243,19 +224,13 @@ export default function DashboardPage() {
                         <p className="font-black text-lg leading-none" style={{ color: '#1A1033' }}>{s.value}</p>
                         <p className="text-gray-400 text-[10px] uppercase tracking-wide mt-0.5">{s.label}</p>
                       </div>
-                    </motion.div>
+                    </div>
                   ))}
                 </div>
               </div>
 
               {/* XP Progress bar */}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.5 }}
-                className="mt-6 pt-5"
-                style={{ borderTop: '1px solid #E4DEFF' }}
-              >
+              <div className="mt-6 pt-5" style={{ borderTop: '1px solid #E4DEFF' }}>
                 <div className="flex items-center justify-between text-xs mb-2">
                   <span className="font-medium text-gray-500">{userData.totalXP.toLocaleString()} XP</span>
                   {userData.level.maxXP < Infinity ? (
@@ -267,38 +242,25 @@ export default function DashboardPage() {
                   )}
                 </div>
                 <div className="h-2 rounded-full overflow-hidden" style={{ background: '#E4DEFF' }}>
-                  <motion.div
-                    initial={{ width: '0%' }}
-                    animate={{ width: `${xpPct}%` }}
-                    transition={{ duration: 1.4, ease: [0.34, 1.4, 0.64, 1], delay: 0.55 }}
-                    className="h-full rounded-full"
-                    style={{ background: `linear-gradient(90deg, #5B38F5, ${lc.ring})` }}
+                  <div
+                    className="h-full rounded-full transition-all duration-700"
+                    style={{ width: `${xpPct}%`, background: `linear-gradient(90deg, #5B38F5, ${lc.ring})` }}
                   />
                 </div>
-              </motion.div>
+              </div>
             </div>
-          </motion.div>
+          </div>
 
           <div className="flex flex-col lg:flex-row gap-8">
 
             {/* ── Missions grid ─────────────────────────────────── */}
             <div className="flex-1">
-              <motion.div
-                initial={{ opacity: 0, x: -12 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.2 }}
-                className="mb-5"
-              >
+              <div className="mb-5">
                 <h2 className="text-xl font-black" style={{ color: '#1A1033' }}>Your Missions</h2>
                 <p className="text-sm text-gray-400 mt-0.5">8-week startup operator program — one mission at a time</p>
-              </motion.div>
+              </div>
 
-              <motion.div
-                variants={staggerContainer}
-                initial="hidden"
-                animate="show"
-                className="grid grid-cols-1 sm:grid-cols-2 gap-4"
-              >
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {weeks.map((week) => {
                   const progress = week.weekProgress[0] ?? null
                   const isLocked = !progress?.isUnlocked
@@ -312,16 +274,11 @@ export default function DashboardPage() {
                     />
                   )
                 })}
-              </motion.div>
+              </div>
             </div>
 
             {/* ── Sidebar ───────────────────────────────────────── */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.35, type: 'spring', stiffness: 200, damping: 24 }}
-              className="lg:w-72 space-y-5"
-            >
+            <div className="lg:w-72 space-y-5">
               {/* Top operators */}
               <div className="bg-white rounded-2xl p-5 shadow-sm" style={{ border: '1px solid #E4DEFF' }}>
                 <h3 className="font-bold mb-4 flex items-center gap-2 text-sm" style={{ color: '#1A1033' }}>
@@ -329,11 +286,8 @@ export default function DashboardPage() {
                 </h3>
                 <div className="space-y-2.5">
                   {leaderboard.map((entry, i) => (
-                    <motion.div
+                    <div
                       key={entry.id}
-                      initial={{ opacity: 0, x: 12 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.45 + i * 0.08 }}
                       className={`flex items-center gap-3 p-2 rounded-xl transition-colors ${entry.id === currentUserId ? 'bg-brand-50' : 'hover:bg-gray-50'}`}
                     >
                       <div className="w-6 flex items-center justify-center">{rankIcons[i]}</div>
@@ -344,7 +298,7 @@ export default function DashboardPage() {
                         <p className="text-xs text-gray-400">{entry.level.name}</p>
                       </div>
                       <span className="text-sm font-bold text-brand-600">{formatXP(entry.totalXP)}</span>
-                    </motion.div>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -355,18 +309,14 @@ export default function DashboardPage() {
                   <h3 className="font-bold mb-4 text-sm" style={{ color: '#1A1033' }}>Badges Earned</h3>
                   <div className="flex flex-wrap gap-2">
                     {userData.userBadges.slice(0, 8).map((ub, i) => (
-                      <motion.div
+                      <div
                         key={i}
-                        initial={{ scale: 0, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        transition={{ delay: 0.5 + i * 0.06, type: 'spring', stiffness: 400, damping: 18 }}
-                        whileHover={{ scale: 1.18, rotate: [0, -8, 8, 0] }}
                         title={ub.badge.name}
-                        className="w-11 h-11 rounded-xl flex items-center justify-center text-xl cursor-default shadow-sm"
+                        className="w-11 h-11 rounded-xl flex items-center justify-center text-xl cursor-default shadow-sm hover:scale-110 transition-transform"
                         style={{ background: '#F0ECFF', border: '1px solid #E4DEFF' }}
                       >
                         {ub.badge.iconEmoji}
-                      </motion.div>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -388,7 +338,7 @@ export default function DashboardPage() {
                   ))}
                 </div>
               </div>
-            </motion.div>
+            </div>
           </div>
         </div>
       </main>

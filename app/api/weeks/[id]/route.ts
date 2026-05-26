@@ -15,10 +15,10 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
       topics: {
         orderBy: { sortOrder: 'asc' },
         include: {
+          references: { orderBy: { sortOrder: 'asc' } },
           subtopics: {
             orderBy: { sortOrder: 'asc' },
             include: {
-              references: { orderBy: { sortOrder: 'asc' } },
               quiz: { select: { id: true, status: true, passThreshold: true } },
               project: { select: { id: true, title: true, isPublished: true } },
               userProgress: { where: { userId } },
