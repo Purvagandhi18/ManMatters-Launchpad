@@ -9,6 +9,7 @@ interface LearnerSummary {
   id: string
   displayName: string
   email: string
+  isTestUser: boolean
   totalXP: number
   level: { name: string; level: number }
   streak: number
@@ -36,7 +37,7 @@ export default function AdminDashboard() {
       fetch('/api/admin/progress').then(r => r.json()),
       fetch('/api/admin/weeks').then(r => r.json()),
     ]).then(([l, w]) => {
-      setLearners(l)
+      setLearners((l as LearnerSummary[]).filter(u => !u.isTestUser))
       setWeeks(w)
       setLoading(false)
     })
