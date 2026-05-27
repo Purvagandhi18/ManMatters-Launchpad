@@ -1,9 +1,10 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { CheckCircle2, ExternalLink, ClipboardList, BookOpen, Star } from 'lucide-react'
+import { CheckCircle2, ExternalLink, ClipboardList, BookOpen, Star, ChevronRight, ArrowLeft, LayoutDashboard } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
+import Link from 'next/link'
 
 interface RubricCriterion {
   id: string
@@ -44,6 +45,15 @@ interface ProjectData {
   expectedOutput: string
   criteria: RubricCriterion[]
   submissions: ProjectSubmission[]
+  subtopic: {
+    id: string
+    title: string
+    topic: {
+      id: string
+      title: string
+      week: { id: string; number: number; title: string }
+    }
+  }
 }
 
 type Tab = 'brief' | 'rubric' | 'submission' | 'feedback'
@@ -58,6 +68,7 @@ export default function ProjectPage() {
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [justSubmitted, setJustSubmitted] = useState(false)
 
   useEffect(() => {
     fetch(`/api/projects/${params.id}`)
@@ -67,6 +78,7 @@ export default function ProjectPage() {
         if (data.submissions?.[0]) {
           setSubmitted(true)
           if (data.submissions[0].grade) setTab('feedback')
+          else setTab('submission')
         }
         setLoading(false)
       })
@@ -80,8 +92,8 @@ export default function ProjectPage() {
       body: JSON.stringify({ submissionLink, notes }),
     })
     setSubmitted(true)
+    setJustSubmitted(true)
     setSubmitting(false)
-    // Refresh
     const data = await fetch(`/api/projects/${params.id}`).then(r => r.json())
     setProject(data)
     setTab('submission')
@@ -89,14 +101,19 @@ export default function ProjectPage() {
 
   if (loading || !project) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <p className="text-gray-400">Loading project…</p>
+      <div className="min-h-screen bg-gray-50">
+        <div className="bg-white border-b border-gray-200 h-14" />
+        <div className="max-w-3xl mx-auto px-4 py-8 space-y-4">
+          <div className="h-36 rounded-2xl bg-orange-100/60 animate-pulse" />
+          <div className="h-64 rounded-2xl bg-white border border-gray-200 animate-pulse" />
+        </div>
       </div>
     )
   }
 
   const latestSubmission = project.submissions[0]
   const grade = latestSubmission?.grade
+  const week = project.subtopic.topic.week
 
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
     { key: 'brief', label: 'Brief', icon: <BookOpen size={14} /> },
@@ -106,25 +123,93 @@ export default function ProjectPage() {
   ]
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-3xl mx-auto">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-orange-500 to-amber-500 rounded-2xl p-6 text-white mb-6 shadow">
-          <div className="flex items-start justify-between">
+    <div className="min-h-screen bg-gray-50">
+
+      {/* ── Persistent header ─────────────────────────────────── */}
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
+        <div className="max-w-3xl mx-auto px-4 h-13 flex items-center gap-2 py-3">
+          {/* Back button */}
+          <button
+            onClick={() => router.push(`/week/${week.id}`)}
+            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors mr-1"
+          >
+            <ArrowLeft size={15} />
+            <span className="hidden sm:inline">Week {week.number}</span>
+          </button>
+
+          {/* Breadcrumb */}
+          <nav className="flex items-center gap-1 text-sm min-w-0 flex-1">
+            <Link href="/dashboard" className="text-brand-600 hover:text-brand-700 font-medium transition-colors flex items-center gap-1 flex-shrink-0">
+              <LayoutDashboard size={13} />
+              <span className="hidden sm:inline">Dashboard</span>
+            </Link>
+            <ChevronRight size={13} className="text-gray-300 flex-shrink-0" />
+            <Link href={`/week/${week.id}`} className="text-gray-500 hover:text-gray-700 transition-colors flex-shrink-0 truncate max-w-[120px]">
+              Week {week.number}
+            </Link>
+            <ChevronRight size={13} className="text-gray-300 flex-shrink-0" />
+            <span className="text-gray-900 font-medium truncate">{project.title}</span>
+          </nav>
+
+          {/* Dashboard shortcut */}
+          <Link
+            href="/dashboard"
+            className="flex-shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg bg-brand-50 text-brand-700 hover:bg-brand-100 transition-colors border border-brand-100"
+          >
+            Dashboard
+          </Link>
+        </div>
+      </header>
+
+      <div className="max-w-3xl mx-auto px-4 py-6">
+
+        {/* ── Project header card ───────────────────────────────── */}
+        <div className="bg-gradient-to-r from-orange-500 to-amber-500 rounded-2xl p-6 text-white mb-5 shadow">
+          <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-orange-100 text-xs font-semibold uppercase tracking-wide mb-1">Project</p>
               <h1 className="text-2xl font-bold">{project.title}</h1>
+              <p className="text-orange-100 text-xs mt-1">{project.subtopic.topic.title} · Week {week.number}</p>
             </div>
             {submitted && (
-              <div className="flex items-center gap-2 bg-white/20 px-3 py-1.5 rounded-full">
-                <CheckCircle2 size={16} />
+              <div className="flex items-center gap-2 bg-white/20 px-3 py-1.5 rounded-full flex-shrink-0">
+                <CheckCircle2 size={15} />
                 <span className="text-sm font-medium">{grade ? 'Graded' : 'Submitted'}</span>
               </div>
             )}
           </div>
         </div>
 
-        {/* Tabs */}
+        {/* ── Just-submitted success state ─────────────────────── */}
+        {justSubmitted && (
+          <div className="mb-5 bg-green-50 border border-green-200 rounded-2xl p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                <CheckCircle2 size={20} className="text-green-600" />
+              </div>
+              <div>
+                <p className="font-bold text-green-900">Project submitted!</p>
+                <p className="text-sm text-green-700 mt-0.5">Your work is now under review. We&apos;ll let you know once it&apos;s been graded.</p>
+              </div>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Link
+                href="/dashboard"
+                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 text-white font-semibold text-sm hover:bg-brand-700 transition-colors shadow-sm"
+              >
+                <LayoutDashboard size={15} /> Back to Dashboard
+              </Link>
+              <Link
+                href={`/week/${week.id}`}
+                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white text-gray-700 font-semibold text-sm hover:bg-gray-50 transition-colors border border-gray-200"
+              >
+                <ArrowLeft size={15} /> Back to Week {week.number}
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* ── Tab content ───────────────────────────────────────── */}
         <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
           <div className="flex border-b border-gray-200">
             {tabs.map(t => (
@@ -178,7 +263,7 @@ export default function ProjectPage() {
                   </div>
                 ))}
                 <Button onClick={() => setTab('submission')} className="bg-orange-500 hover:bg-orange-600 w-full">
-                  {submitted ? 'View Submission' : 'Submit Your Work →'}
+                  {submitted ? 'View Submission →' : 'Submit Your Work →'}
                 </Button>
               </div>
             )}
@@ -187,11 +272,11 @@ export default function ProjectPage() {
             {tab === 'submission' && (
               <div className="space-y-4">
                 {submitted && latestSubmission ? (
-                  <div className="space-y-4">
+                  <div className="space-y-5">
                     <div className="bg-green-50 border border-green-200 rounded-xl p-4">
                       <div className="flex items-center gap-2 text-green-700 mb-2">
                         <CheckCircle2 size={16} />
-                        <span className="font-semibold text-sm">Submitted</span>
+                        <span className="font-semibold text-sm">{grade ? 'Graded' : 'Under review'}</span>
                         <span className="text-xs text-green-500 ml-auto">
                           {new Date(latestSubmission.submittedAt).toLocaleDateString()}
                         </span>
@@ -211,11 +296,32 @@ export default function ProjectPage() {
                         <p className="text-sm text-gray-600 mt-2 whitespace-pre-wrap">{latestSubmission.notes}</p>
                       )}
                     </div>
-                    {!grade && (
-                      <p className="text-sm text-gray-500 text-center py-4">
-                        Your submission is awaiting review. Check back soon!
+
+                    {grade ? (
+                      <Button onClick={() => setTab('feedback')} className="bg-orange-500 hover:bg-orange-600 w-full">
+                        View Feedback →
+                      </Button>
+                    ) : (
+                      <p className="text-sm text-gray-500 text-center py-2">
+                        Your submission is under review. Check back soon!
                       </p>
                     )}
+
+                    {/* Navigation CTAs — always visible in submission tab */}
+                    <div className="pt-2 border-t border-gray-100 flex flex-col sm:flex-row gap-2">
+                      <Link
+                        href="/dashboard"
+                        className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 text-white font-semibold text-sm hover:bg-brand-700 transition-colors"
+                      >
+                        <LayoutDashboard size={15} /> Back to Dashboard
+                      </Link>
+                      <Link
+                        href={`/week/${week.id}`}
+                        className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gray-50 text-gray-700 font-semibold text-sm hover:bg-gray-100 transition-colors border border-gray-200"
+                      >
+                        <ArrowLeft size={15} /> Back to Week {week.number}
+                      </Link>
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -282,9 +388,7 @@ export default function ProjectPage() {
                         <p className="text-xs text-gray-500">{cs.criterion.description}</p>
                       </div>
                       <div className="text-right flex-shrink-0 ml-4">
-                        <span className="text-sm font-bold text-gray-900">
-                          {cs.scoreAwarded}
-                        </span>
+                        <span className="text-sm font-bold text-gray-900">{cs.scoreAwarded}</span>
                         <span className="text-sm text-gray-400">/{cs.criterion.maxMarks}</span>
                       </div>
                     </div>
@@ -298,9 +402,21 @@ export default function ProjectPage() {
                   </div>
                 )}
 
-                <Button onClick={() => router.back()} variant="secondary" className="w-full">
-                  Back to Week
-                </Button>
+                {/* Navigation CTAs */}
+                <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                  <Link
+                    href="/dashboard"
+                    className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 text-white font-semibold text-sm hover:bg-brand-700 transition-colors"
+                  >
+                    <LayoutDashboard size={15} /> Back to Dashboard
+                  </Link>
+                  <Link
+                    href={`/week/${week.id}`}
+                    className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gray-50 text-gray-700 font-semibold text-sm hover:bg-gray-100 transition-colors border border-gray-200"
+                  >
+                    <ArrowLeft size={15} /> Back to Week {week.number}
+                  </Link>
+                </div>
               </div>
             )}
           </div>

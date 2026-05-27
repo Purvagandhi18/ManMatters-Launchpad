@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
-import { awardQuizXP, markStreakActivity } from '@/lib/gamification'
+import { awardQuizXP, markStreakActivity, checkWeekComplete, checkQuizMaster, checkPerfectionist, BadgeResult } from '@/lib/gamification'
+import { logActivity } from '@/lib/activity'
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
@@ -16,7 +17,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     where: { id: params.id },
     include: {
       questions: { include: { options: true } },
-      subtopic: true,
+      subtopic: { include: { topic: { include: { week: true } } } },
     },
   })
   if (!quiz) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -67,11 +68,13 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       scorePct,
       passed,
       completedAt: new Date(),
-      answers: {
-        create: attemptAnswers,
-      },
+      answers: { create: attemptAnswers },
     },
   })
+
+  await logActivity(userId, 'quiz_attempt')
+
+  const badgesEarned: BadgeResult[] = []
 
   if (passed) {
     await awardQuizXP(userId, attempt.id, scorePct, isRetry)
@@ -82,6 +85,23 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       create: { userId, subtopicId: quiz.subtopicId, quizPassed: true, completedAt: new Date() },
       update: { quizPassed: true, completedAt: new Date() },
     })
+
+    const week = quiz.subtopic.topic.week
+    const weekNumber = week.number
+
+    // Check week-completion badge
+    const weekBadge = await checkWeekComplete(userId, week.id)
+    if (weekBadge) badgesEarned.push(weekBadge)
+
+    // Check Perfectionist for this week (first-attempt pass)
+    if (!isRetry) {
+      const perfBadge = await checkPerfectionist(userId, week.id, weekNumber)
+      if (perfBadge) badgesEarned.push(perfBadge)
+    }
+
+    // Check Quiz Master (program-wide)
+    const masterBadge = await checkQuizMaster(userId)
+    if (masterBadge) badgesEarned.push(masterBadge)
   }
 
   const questionsWithAnswers = quiz.questions.map(q => {
@@ -105,5 +125,6 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     maxScore,
     passed,
     questions: questionsWithAnswers,
+    badgesEarned,
   })
 }

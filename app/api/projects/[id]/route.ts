@@ -11,6 +11,7 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
   const project = await prisma.project.findUnique({
     where: { id: params.id },
     include: {
+      subtopic: { include: { topic: { include: { week: { select: { id: true, number: true, title: true } } } } } },
       criteria: { orderBy: { sortOrder: 'asc' } },
       submissions: {
         where: { userId },

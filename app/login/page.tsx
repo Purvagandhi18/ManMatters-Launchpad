@@ -25,10 +25,10 @@ const STATUS_MESSAGES = [
 
 export default function LoginPage() {
   const router = useRouter()
-  const [email, setEmail]       = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError]       = useState('')
-  const [loading, setLoading]   = useState(false)
+  const [username, setUsername]  = useState('')
+  const [password, setPassword]  = useState('')
+  const [error, setError]        = useState('')
+  const [loading, setLoading]    = useState(false)
   const [showPassword, setShowPassword] = useState(false)
 
   // Typewriter status line
@@ -67,9 +67,9 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
     try {
-      const result = await signIn('credentials', { email, password, redirect: false })
+      const result = await signIn('credentials', { username, password, redirect: false })
       if (result?.error) {
-        setError('Invalid email or password.')
+        setError('Invalid user ID or password.')
         setLoading(false)
         return
       }
@@ -163,17 +163,17 @@ export default function LoginPage() {
 
               <form onSubmit={handleSubmit} className="space-y-5">
                 <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-indigo-200 mb-1.5">
-                    Email address
+                  <label htmlFor="username" className="block text-sm font-medium text-indigo-200 mb-1.5">
+                    User ID
                   </label>
                   <input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    id="username"
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
                     required
-                    autoComplete="email"
-                    placeholder="you@manmatters.com"
+                    autoComplete="username"
+                    placeholder="e.g. kunal"
                     className="w-full px-4 py-2.5 rounded-xl bg-white/10 border border-white/15 text-white placeholder-indigo-300/50 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 transition-all"
                   />
                 </div>

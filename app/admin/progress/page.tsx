@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { AdminSidebar } from '@/components/admin/AdminSidebar'
 import Link from 'next/link'
 import { formatXP } from '@/lib/utils'
@@ -9,6 +9,7 @@ interface LearnerSummary {
   id: string
   displayName: string
   email: string
+  isTestUser: boolean
   totalXP: number
   level: { level: number; name: string }
   streak: number
@@ -23,8 +24,9 @@ export default function AdminProgressPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('/api/admin/progress').then(r => r.json()).then(data => {
-      setLearners(data)
+    fetch('/api/admin/progress').then(r => r.json()).then((data: LearnerSummary[]) => {
+      // Real learners first, test accounts at the bottom
+      setLearners([...data.filter(l => !l.isTestUser), ...data.filter(l => l.isTestUser)])
       setLoading(false)
     })
   }, [])
@@ -50,7 +52,7 @@ export default function AdminProgressPage() {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Learner Progress</h1>
-            <p className="text-gray-500 text-sm mt-1">{learners.length} active learners in the program</p>
+            <p className="text-gray-500 text-sm mt-1">{learners.filter(l => !l.isTestUser).length} active learners in the program</p>
           </div>
           <button
             onClick={exportCSV}
@@ -73,10 +75,24 @@ export default function AdminProgressPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {learners.map(l => (
-                  <tr key={l.id} className="hover:bg-gray-50 transition-colors">
+                {learners.map((l, idx) => (
+                  <React.Fragment key={l.id}>
+                    {/* Divider before test accounts */}
+                    {l.isTestUser && idx > 0 && !learners[idx - 1].isTestUser && (
+                      <tr>
+                        <td colSpan={9} className="px-5 py-2 bg-gray-50 border-t-2 border-dashed border-gray-200">
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">QC / Test Accounts</span>
+                        </td>
+                      </tr>
+                    )}
+                  <tr className={`hover:bg-gray-50 transition-colors ${l.isTestUser ? 'opacity-75' : ''}`}>
                     <td className="px-5 py-4">
-                      <p className="text-sm font-medium text-gray-900">{l.displayName}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-gray-900">{l.displayName}</p>
+                        {l.isTestUser && (
+                          <span className="text-[9px] font-bold uppercase tracking-wider bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">TEST</span>
+                        )}
+                      </div>
                       <p className="text-xs text-gray-400">{l.email}</p>
                     </td>
                     <td className="px-5 py-4">
@@ -106,6 +122,7 @@ export default function AdminProgressPage() {
                       </Link>
                     </td>
                   </tr>
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>

@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { getUserTotalXP, getLevelFromXP, getCurrentStreak } from '@/lib/gamification'
+import { logActivity, ACTIVITY_LABELS, scoreToLevel } from '@/lib/activity'
 
 export async function PATCH(req: Request) {
   const session = await getServerSession(authOptions)
@@ -28,10 +29,14 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const userId = (session.user as { id: string }).id
 
-  const twelveWeeksAgo = new Date()
-  twelveWeeksAgo.setDate(twelveWeeksAgo.getDate() - 84)
+  // Fire-and-forget: log dashboard visit (deduplicated per day)
+  logActivity(userId, 'page_visit', { deduplicate: true }).catch(() => {})
 
-  const [user, totalXP, streak, xpTransactions] = await Promise.all([
+  const eightyFourDaysAgo = new Date()
+  eightyFourDaysAgo.setDate(eightyFourDaysAgo.getDate() - 83)
+  eightyFourDaysAgo.setHours(0, 0, 0, 0)
+
+  const [user, totalXP, streak, xpTransactions, activityEvents] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
       include: {
@@ -42,39 +47,48 @@ export async function GET() {
     getUserTotalXP(userId),
     getCurrentStreak(userId),
     prisma.xPTransaction.findMany({
-      where: { userId, createdAt: { gte: twelveWeeksAgo } },
-      select: { amount: true, createdAt: true },
+      where: { userId, createdAt: { gte: eightyFourDaysAgo } },
+      select: { amount: true, createdAt: true, reason: true },
+    }),
+    prisma.activityEvent.findMany({
+      where: { userId, createdAt: { gte: eightyFourDaysAgo } },
+      select: { type: true, score: true, createdAt: true },
     }),
   ])
 
   if (!user) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  // Compute XP earned per week for activity level
-  const xpByWeek: Record<string, number> = {}
+  // XP by day (for tooltip "+X XP" display)
+  const xpByDay: Record<string, number> = {}
   for (const tx of xpTransactions) {
-    const d = new Date(tx.createdAt)
-    const day = d.getDay()
-    const diff = (day === 0 ? -6 : 1) - day
-    const weekStart = new Date(d)
-    weekStart.setDate(d.getDate() + diff)
-    weekStart.setHours(0, 0, 0, 0)
-    const key = weekStart.toISOString()
-    xpByWeek[key] = (xpByWeek[key] ?? 0) + tx.amount
+    const key = new Date(tx.createdAt).toISOString().split('T')[0]
+    xpByDay[key] = (xpByDay[key] ?? 0) + tx.amount
   }
 
-  const streakRecordsWithLevel = user.streakRecords.map(r => {
-    const xp = xpByWeek[new Date(r.weekStartDate).toISOString()] ?? 0
-    const activityLevel = xp >= 150 ? 'high' : xp > 0 ? 'light' : r.hasActivity ? 'light' : 'none'
-    return { ...r, activityLevel }
+  // Activity score + events by day (primary source for heatmap level)
+  const scoreByDay: Record<string, number> = {}
+  const eventsByDay: Record<string, string[]> = {}
+  for (const ev of activityEvents) {
+    const key = new Date(ev.createdAt).toISOString().split('T')[0]
+    scoreByDay[key] = (scoreByDay[key] ?? 0) + ev.score
+    if (!eventsByDay[key]) eventsByDay[key] = []
+    const label = ACTIVITY_LABELS[ev.type] ?? ev.type
+    if (!eventsByDay[key].includes(label)) eventsByDay[key].push(label)
+  }
+
+  // 84-day activity grid (oldest → newest)
+  const dailyActivity = Array.from({ length: 84 }, (_, i) => {
+    const d = new Date(eightyFourDaysAgo)
+    d.setDate(eightyFourDaysAgo.getDate() + i)
+    const date = d.toISOString().split('T')[0]
+    const xp = xpByDay[date] ?? 0
+    const score = scoreByDay[date] ?? 0
+    const events = eventsByDay[date] ?? []
+    const level = scoreToLevel(score)
+    return { date, xp, score, events, level }
   })
 
   const level = getLevelFromXP(totalXP)
   const { password: _pw, ...userWithoutPassword } = user
-  return NextResponse.json({
-    ...userWithoutPassword,
-    streakRecords: streakRecordsWithLevel,
-    totalXP,
-    level,
-    streak,
-  })
+  return NextResponse.json({ ...userWithoutPassword, totalXP, level, streak, dailyActivity })
 }

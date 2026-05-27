@@ -10,6 +10,7 @@ import {
   Trophy,
   ArrowLeft,
 } from 'lucide-react'
+import { NotificationBell } from '@/components/ui/NotificationBell'
 
 const links = [
   { href: '/admin/dashboard',  label: 'Dashboard',  icon: LayoutDashboard },
@@ -25,10 +26,16 @@ export function AdminSidebar() {
   return (
     <aside className="fixed left-0 top-0 h-full w-60 bg-gray-900 text-white flex flex-col z-40">
       <div className="px-6 py-5 border-b border-gray-700">
-        <Link href="/admin/dashboard" className="flex items-center gap-2 font-bold text-lg">
-          <span>🚀</span>
-          <span className="text-white">The Launchpad</span>
-        </Link>
+        <div className="flex items-center justify-between">
+          <Link href="/admin/dashboard" className="flex items-center gap-2 font-bold text-lg">
+            <span>🚀</span>
+            <span className="text-white">The Launchpad</span>
+          </Link>
+          {/* Admin bell — white tinted version */}
+          <div className="[&_button]:text-gray-400 [&_button:hover]:text-white [&_button:hover]:bg-gray-700">
+            <NotificationBell mode="admin" />
+          </div>
+        </div>
         <p className="text-xs text-gray-400 mt-1">Admin Panel</p>
       </div>
 

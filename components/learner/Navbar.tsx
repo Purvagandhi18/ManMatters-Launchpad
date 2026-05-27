@@ -3,6 +3,7 @@ import { signOut } from 'next-auth/react'
 import Link from 'next/link'
 import { LogOut, Flame, Trophy } from 'lucide-react'
 import { getInitials } from '@/lib/utils'
+import { NotificationBell } from '@/components/ui/NotificationBell'
 
 interface NavbarProps {
   user: {
@@ -29,7 +30,7 @@ export function Navbar({ user, title }: NavbarProps) {
           <span>The Launchpad</span>
         </Link>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           {/* Streak pill */}
           {user.streak > 0 && (
             <div className="hidden sm:flex items-center gap-1 text-orange-600 font-semibold text-xs bg-orange-50 border border-orange-100 rounded-full px-2.5 py-1">
@@ -43,6 +44,9 @@ export function Navbar({ user, title }: NavbarProps) {
             <Trophy size={13} />
             <span>Rankings</span>
           </Link>
+
+          {/* Notification bell */}
+          <NotificationBell mode="learner" />
 
           {/* Identity */}
           <Link href="/profile" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
