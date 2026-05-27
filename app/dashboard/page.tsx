@@ -51,7 +51,7 @@ interface UserData {
   totalXP: number
   level: { name: string; level: number; minXP: number; maxXP: number }
   streak: number
-  userBadges: { badge: { name: string; iconEmoji: string } }[]
+  userBadges: { badge: { name: string; iconEmoji: string; conditionType: string }; weekNumber: number | null; earnedAt: string }[]
 }
 
 interface LeaderEntry {
@@ -60,6 +60,23 @@ interface LeaderEntry {
   totalXP: number
   level: { name: string }
   streak: number
+}
+
+interface NudgeItem {
+  type: string
+  icon: string
+  title: string
+  subtitle?: string
+  value?: number
+}
+
+function nudgeBg(type: string) {
+  if (type === 'project_graded')   return { bg: '#ECFDF5', border: '#BBF7D0' }
+  if (type === 'xp_gained')        return { bg: '#EEF2FF', border: '#C7D2FE' }
+  if (type === 'badge_earned')     return { bg: '#FEFCE8', border: '#FDE68A' }
+  if (type === 'reflection_scored')return { bg: '#F5F3FF', border: '#E4DEFF' }
+  if (type === 'week_unlocked')    return { bg: '#FFF7ED', border: '#FED7AA' }
+  return { bg: '#F9FAFB', border: '#E5E7EB' }
 }
 
 function AnimatedXP({ value }: { value: number }) {
@@ -72,28 +89,71 @@ function AnimatedXP({ value }: { value: number }) {
 
 export default function DashboardPage() {
   const { data: session } = useSession()
-  const [weeks, setWeeks]             = useState<WeekData[]>([])
-  const [userData, setUserData]       = useState<UserData | null>(null)
-  const [leaderboard, setLeaderboard] = useState<LeaderEntry[]>([])
-  const [lockModal, setLockModal]     = useState(false)
-  const [loading, setLoading]         = useState(true)
+  const [weeks, setWeeks]                       = useState<WeekData[]>([])
+  const [userData, setUserData]                 = useState<UserData | null>(null)
+  const [leaderboard, setLeaderboard]           = useState<LeaderEntry[]>([])
+  const [lockModal, setLockModal]               = useState(false)
+  const [loading, setLoading]                   = useState(true)
+  const [nudges, setNudges]                     = useState<NudgeItem[]>([])
+  const [xpDelta, setXpDelta]                   = useState(0)
+  const [newBadgeKey, setNewBadgeKey]           = useState(0)
+  const [newlyUnlockedWeekIds, setNewlyUnlockedWeekIds] = useState<Set<string>>(new Set())
+  const [leveledUp, setLeveledUp]               = useState<string | null>(null)
 
   const currentUserId = (session?.user as { id?: string })?.id
 
   useEffect(() => {
+    const lastSeen = localStorage.getItem('lp_last_seen')
+    localStorage.setItem('lp_last_seen', new Date().toISOString())
+
     Promise.all([
       fetch('/api/weeks').then(r => r.json()),
       fetch('/api/users/me').then(async r => ({ ok: r.ok, data: await r.json() })),
       fetch('/api/leaderboard').then(r => r.json()),
-    ]).then(([w, u, l]) => {
-      if (!u.ok) {
-        signOut({ callbackUrl: '/login' })
-        return
-      }
+      lastSeen
+        ? fetch(`/api/users/nudges?since=${encodeURIComponent(lastSeen)}`).then(r => r.json()).catch(() => ({ nudges: [] }))
+        : Promise.resolve({ nudges: [] }),
+    ]).then(([w, u, l, nd]) => {
+      if (!u.ok) { signOut({ callbackUrl: '/login' }); return }
+
       setWeeks(w)
       setUserData(u.data)
       setLeaderboard(l.slice(0, 3))
       setLoading(false)
+
+      // Level-up detection
+      const prevLevelNum = parseInt(localStorage.getItem('lp_level') ?? '0', 10)
+      const currentLevelNum = u.data.level?.level ?? 1
+      if (prevLevelNum > 0 && currentLevelNum > prevLevelNum) {
+        setLeveledUp(u.data.level.name)
+        setTimeout(() => setLeveledUp(null), 5000)
+      }
+      localStorage.setItem('lp_level', String(currentLevelNum))
+
+      // Process nudges
+      const items: NudgeItem[] = nd.nudges ?? []
+      if (items.length > 0) {
+        setNudges(items)
+        const xpNudge = items.find(n => n.type === 'xp_gained')
+        if (xpNudge?.value) {
+          setXpDelta(xpNudge.value)
+          setTimeout(() => setXpDelta(0), 3500)
+        }
+        if (items.some(n => n.type === 'badge_earned')) setNewBadgeKey(k => k + 1)
+      }
+
+      // Week unlock tracking (client-side, no schema change needed)
+      const currentUnlocked = (w as WeekData[]).filter(wk => wk.weekProgress[0]?.isUnlocked).map(wk => wk.id)
+      const prev: string[] = JSON.parse(localStorage.getItem('lp_unlocked_weeks') ?? '[]')
+      const prevSet = new Set(prev)
+      if (prevSet.size > 0) {
+        const fresh = new Set(currentUnlocked.filter(id => !prevSet.has(id)))
+        if (fresh.size > 0) {
+          setNewlyUnlockedWeekIds(fresh)
+          setTimeout(() => setNewlyUnlockedWeekIds(new Set()), 5000)
+        }
+      }
+      localStorage.setItem('lp_unlocked_weeks', JSON.stringify(currentUnlocked))
     })
   }, [])
 
@@ -173,9 +233,17 @@ export default function DashboardPage() {
                       }
                     </div>
                     {userData.userBadges[0] ? (
-                      <div className="absolute -bottom-1.5 -right-1.5 bg-white rounded-full w-7 h-7 flex items-center justify-center text-base shadow border border-gray-100" title={userData.userBadges[0].badge.name}>
+                      <motion.div
+                        key={`badge-${userData.userBadges[0].badge.name}-${newBadgeKey}`}
+                        initial={newBadgeKey > 0 ? { scale: 0, rotate: -20 } : false}
+                        animate={{ scale: 1, rotate: 0 }}
+                        transition={{ type: 'spring', stiffness: 500, damping: 18, delay: 0.3 }}
+                        className="absolute -bottom-1.5 -right-1.5 bg-white rounded-full w-7 h-7 flex items-center justify-center text-base shadow border border-gray-100"
+                        title={userData.userBadges[0].badge.name}
+                        style={newBadgeKey > 0 ? { boxShadow: '0 0 0 3px rgba(91,56,245,0.25), 0 2px 8px rgba(91,56,245,0.2)' } : {}}
+                      >
                         {userData.userBadges[0].badge.iconEmoji}
-                      </div>
+                      </motion.div>
                     ) : (
                       <div
                         className="absolute -bottom-1.5 -right-1.5 bg-white rounded-full h-6 px-2 flex items-center text-[10px] font-black shadow border border-gray-100"
@@ -209,24 +277,50 @@ export default function DashboardPage() {
 
                 {/* Stat cards */}
                 <div className="sm:ml-auto flex flex-wrap gap-3">
-                  {[
-                    { icon: <Zap size={15} className="text-brand-600" />, bg: 'bg-brand-50', value: <AnimatedXP value={userData.totalXP} />, label: 'XP Earned',  delay: 0.28 },
-                    { icon: <Flame size={15} className="text-orange-500" />, bg: 'bg-orange-50', value: userData.streak > 0 ? `${userData.streak}w` : '—', label: userData.streak > 0 ? 'Week streak' : 'Start a streak', delay: 0.36 },
-                    { icon: <Star size={15} className="text-amber-500" />, bg: 'bg-amber-50', value: userData.userBadges.length, label: 'Badges earned', delay: 0.44 },
-                  ].map((s, i) => (
-                    <div
-                      key={i}
-                      className="flex items-center gap-2.5 bg-white/85 backdrop-blur-sm border border-white rounded-2xl px-4 py-3 min-w-[110px] shadow-sm"
-                    >
-                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${s.bg}`}>
-                        {s.icon}
-                      </div>
-                      <div>
-                        <p className="font-black text-lg leading-none" style={{ color: '#1A1033' }}>{s.value}</p>
-                        <p className="text-gray-400 text-[10px] uppercase tracking-wide mt-0.5">{s.label}</p>
-                      </div>
+                  {/* XP card — with burst animation */}
+                  <div className="relative flex items-center gap-2.5 bg-white/85 backdrop-blur-sm border border-white rounded-2xl px-4 py-3 min-w-[110px] shadow-sm">
+                    <AnimatePresence>
+                      {xpDelta > 0 && (
+                        <motion.span
+                          key="xp-burst"
+                          initial={{ opacity: 0, y: 4, scale: 0.8 }}
+                          animate={{ opacity: 1, y: -22, scale: 1 }}
+                          exit={{ opacity: 0, y: -36, scale: 0.9 }}
+                          transition={{ duration: 0.65, ease: 'easeOut' }}
+                          className="absolute top-0 left-1/2 -translate-x-1/2 text-[11px] font-black text-brand-600 bg-white border border-brand-200 px-2 py-0.5 rounded-full shadow-sm pointer-events-none whitespace-nowrap z-10"
+                        >
+                          +{xpDelta.toLocaleString()} XP
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-brand-50">
+                      <Zap size={15} className="text-brand-600" />
                     </div>
-                  ))}
+                    <div>
+                      <p className="font-black text-lg leading-none" style={{ color: '#1A1033' }}><AnimatedXP value={userData.totalXP} /></p>
+                      <p className="text-gray-400 text-[10px] uppercase tracking-wide mt-0.5">XP Earned</p>
+                    </div>
+                  </div>
+                  {/* Streak card */}
+                  <div className="flex items-center gap-2.5 bg-white/85 backdrop-blur-sm border border-white rounded-2xl px-4 py-3 min-w-[110px] shadow-sm">
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-orange-50">
+                      <Flame size={15} className="text-orange-500" />
+                    </div>
+                    <div>
+                      <p className="font-black text-lg leading-none" style={{ color: '#1A1033' }}>{userData.streak > 0 ? `${userData.streak}w` : '—'}</p>
+                      <p className="text-gray-400 text-[10px] uppercase tracking-wide mt-0.5">{userData.streak > 0 ? 'Week streak' : 'Start a streak'}</p>
+                    </div>
+                  </div>
+                  {/* Badges card */}
+                  <div className="flex items-center gap-2.5 bg-white/85 backdrop-blur-sm border border-white rounded-2xl px-4 py-3 min-w-[110px] shadow-sm">
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-amber-50">
+                      <Star size={15} className="text-amber-500" />
+                    </div>
+                    <div>
+                      <p className="font-black text-lg leading-none" style={{ color: '#1A1033' }}>{userData.userBadges.length}</p>
+                      <p className="text-gray-400 text-[10px] uppercase tracking-wide mt-0.5">Badges earned</p>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -252,6 +346,91 @@ export default function DashboardPage() {
             </div>
           </div>
 
+          {/* ── Level-up banner ─────────────────────────────── */}
+          <AnimatePresence>
+            {leveledUp && (
+              <motion.div
+                initial={{ opacity: 0, y: -12, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -8, scale: 0.97 }}
+                transition={{ type: 'spring', stiffness: 300, damping: 22 }}
+                className="mb-5 flex items-center gap-4 px-5 py-4 rounded-2xl"
+                style={{ background: 'linear-gradient(135deg, #5B38F5 0%, #7C3AED 100%)', boxShadow: '0 4px 24px rgba(91,56,245,0.3)' }}
+              >
+                <motion.span
+                  animate={{ rotate: [0, -15, 15, -10, 10, 0], scale: [1, 1.25, 1] }}
+                  transition={{ duration: 0.7, delay: 0.2 }}
+                  className="text-3xl"
+                >🎖️</motion.span>
+                <div className="flex-1">
+                  <p className="text-white font-black text-sm leading-snug">Level up — you&apos;re now {leveledUp}!</p>
+                  <p className="text-white/70 text-xs mt-0.5">Keep going. Every week brings you closer to the top.</p>
+                </div>
+                <button onClick={() => setLeveledUp(null)} className="text-white/50 hover:text-white/90 transition-colors">
+                  <X size={14} />
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* ── What's new nudge panel ───────────────────────── */}
+          <AnimatePresence>
+            {nudges.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+                animate={{ opacity: 1, height: 'auto', marginBottom: 32 }}
+                exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+                transition={{ type: 'spring', stiffness: 180, damping: 22 }}
+                className="overflow-hidden"
+              >
+                <div
+                  className="rounded-2xl overflow-hidden"
+                  style={{ border: '1px solid #E4DEFF', boxShadow: '0 0 0 1px rgba(91,56,245,0.04), 0 4px 20px rgba(91,56,245,0.07)' }}
+                >
+                  <div className="px-5 py-3 flex items-center justify-between" style={{ background: 'linear-gradient(90deg, #F0ECFF 0%, #F8F6FF 100%)', borderBottom: '1px solid #E4DEFF' }}>
+                    <div className="flex items-center gap-2">
+                      <span className="text-base leading-none">✨</span>
+                      <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: '#5B38F5' }}>
+                        What&apos;s new since your last session
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setNudges([])}
+                      className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-full hover:bg-white/60"
+                    >
+                      <X size={13} />
+                    </button>
+                  </div>
+                  <div className="bg-white px-5 py-4 grid sm:grid-cols-2 gap-x-6 gap-y-3">
+                    {nudges.map((n, i) => {
+                      const colors = nudgeBg(n.type)
+                      return (
+                        <motion.div
+                          key={i}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.08 + i * 0.07, type: 'spring', stiffness: 260, damping: 22 }}
+                          className="flex items-center gap-3"
+                        >
+                          <div
+                            className="w-9 h-9 flex-shrink-0 rounded-xl flex items-center justify-center text-lg"
+                            style={{ background: colors.bg, border: `1px solid ${colors.border}` }}
+                          >
+                            {n.icon}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium leading-snug" style={{ color: '#1A1033' }}>{n.title}</p>
+                            {n.subtitle && <p className="text-xs text-gray-400 mt-0.5">{n.subtitle}</p>}
+                          </div>
+                        </motion.div>
+                      )
+                    })}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <div className="flex flex-col lg:flex-row gap-8">
 
             {/* ── Missions grid ─────────────────────────────────── */}
@@ -265,14 +444,29 @@ export default function DashboardPage() {
                 {weeks.map((week) => {
                   const progress = week.weekProgress[0] ?? null
                   const isLocked = !progress?.isUnlocked
+                  const isNew = newlyUnlockedWeekIds.has(week.id)
                   return (
-                    <WeekCard
+                    <motion.div
                       key={week.id}
-                      week={week}
-                      userProgress={progress}
-                      isLocked={isLocked}
-                      onLockClick={() => setLockModal(true)}
-                    />
+                      className="rounded-2xl"
+                      animate={isNew ? {
+                        boxShadow: [
+                          '0 0 0 0px rgba(91,56,245,0)',
+                          '0 0 0 3px rgba(91,56,245,0.35), 0 0 20px rgba(91,56,245,0.15)',
+                          '0 0 0 2px rgba(91,56,245,0.2)',
+                          '0 0 0 3px rgba(91,56,245,0.3), 0 0 16px rgba(91,56,245,0.12)',
+                          '0 0 0 0px rgba(91,56,245,0)',
+                        ],
+                      } : {}}
+                      transition={isNew ? { duration: 2.4, ease: 'easeInOut' } : {}}
+                    >
+                      <WeekCard
+                        week={week}
+                        userProgress={progress}
+                        isLocked={isLocked}
+                        onLockClick={() => setLockModal(true)}
+                      />
+                    </motion.div>
                   )
                 })}
               </div>
@@ -305,23 +499,70 @@ export default function DashboardPage() {
               </div>
 
               {/* Badges */}
-              {userData.userBadges.length > 0 && (
-                <div className="bg-white rounded-2xl p-5 shadow-sm" style={{ border: '1px solid #E4DEFF' }}>
-                  <h3 className="font-bold mb-4 text-sm" style={{ color: '#1A1033' }}>Badges Earned</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {userData.userBadges.slice(0, 8).map((ub, i) => (
-                      <div
-                        key={i}
-                        title={ub.badge.name}
-                        className="w-11 h-11 rounded-xl flex items-center justify-center text-xl cursor-default shadow-sm hover:scale-110 transition-transform"
-                        style={{ background: '#F0ECFF', border: '1px solid #E4DEFF' }}
-                      >
-                        {ub.badge.iconEmoji}
-                      </div>
-                    ))}
+              {userData.userBadges.length > 0 && (() => {
+                // Split into one-time (overall) and recurring (weekly)
+                const overallBadges = userData.userBadges.filter(ub => ub.badge.conditionType !== 'weekly_performance')
+                // Group recurring by badge name with count
+                const weeklyMap = new Map<string, { badge: UserData['userBadges'][0]['badge']; count: number; earnedAt: string }>()
+                for (const ub of userData.userBadges.filter(ub => ub.badge.conditionType === 'weekly_performance')) {
+                  const key = ub.badge.name
+                  const existing = weeklyMap.get(key)
+                  if (existing) {
+                    existing.count++
+                    if (ub.earnedAt > existing.earnedAt) existing.earnedAt = ub.earnedAt
+                  } else {
+                    weeklyMap.set(key, { badge: ub.badge, count: 1, earnedAt: ub.earnedAt })
+                  }
+                }
+                const weeklyBadges = Array.from(weeklyMap.values())
+                return (
+                  <div className="bg-white rounded-2xl p-5 shadow-sm" style={{ border: '1px solid #E4DEFF' }}>
+                    {overallBadges.length > 0 && (
+                      <>
+                        <h3 className="font-bold mb-3 text-sm" style={{ color: '#1A1033' }}>Overall badges</h3>
+                        <div className="flex flex-wrap gap-2 mb-4">
+                          {overallBadges.map((ub, i) => (
+                            <AnimatePresence key={i}>
+                              <motion.div
+                                key={`ob-${i}-${newBadgeKey}`}
+                                initial={i === 0 && newBadgeKey > 0 ? { scale: 0, rotate: -20 } : false}
+                                animate={{ scale: 1, rotate: 0 }}
+                                transition={{ type: 'spring', stiffness: 480, damping: 18, delay: i * 0.04 }}
+                                title={ub.badge.name}
+                                className="w-11 h-11 rounded-xl flex items-center justify-center text-xl cursor-default shadow-sm hover:scale-110 transition-transform"
+                                style={{ background: '#F0ECFF', border: '1px solid #E4DEFF' }}
+                              >
+                                {ub.badge.iconEmoji}
+                              </motion.div>
+                            </AnimatePresence>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                    {weeklyBadges.length > 0 && (
+                      <>
+                        <h3 className="font-bold mb-3 text-sm" style={{ color: '#1A1033' }}>Weekly badges</h3>
+                        <div className="flex flex-wrap gap-2">
+                          {weeklyBadges.map((wb, i) => (
+                            <div key={i} className="flex flex-col items-center gap-1">
+                              <div
+                                title={`${wb.badge.name} ×${wb.count}`}
+                                className="w-11 h-11 rounded-xl flex items-center justify-center text-xl cursor-default shadow-sm hover:scale-110 transition-transform"
+                                style={{ background: '#FFF7ED', border: '1px solid #FED7AA' }}
+                              >
+                                {wb.badge.iconEmoji}
+                              </div>
+                              {wb.count > 1 && (
+                                <span className="text-[9px] font-black tracking-wide" style={{ color: '#f97316' }}>×{wb.count}</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
                   </div>
-                </div>
-              )}
+                )
+              })()}
 
               {/* Momentum card */}
               <div className="bg-white rounded-2xl p-5 shadow-sm" style={{ border: '1px solid #E4DEFF' }}>

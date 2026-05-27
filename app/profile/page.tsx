@@ -16,6 +16,14 @@ interface BadgeData {
   earnedAt?: string | null
 }
 
+interface DayActivity {
+  date: string
+  xp: number
+  count: number
+  events: string[]
+  level: 'high' | 'medium' | 'light' | 'none'
+}
+
 interface UserData {
   id: string
   displayName: string
@@ -25,8 +33,16 @@ interface UserData {
   level: { level: number; name: string; minXP: number; maxXP: number }
   streak: number
   userBadges: { badge: { name: string; iconEmoji: string } }[]
-  streakRecords: { weekStartDate: string; hasActivity: boolean; streakCount: number; activityLevel?: string }[]
+  streakRecords: { weekStartDate: string; hasActivity: boolean; streakCount: number }[]
+  dailyActivity?: DayActivity[]
 }
+
+const HEATMAP_COLORS = {
+  none:   '#F3F4F6',
+  light:  '#FEF9C3',
+  medium: '#86EFAC',
+  high:   '#22C55E',
+} as const
 
 export default function ProfilePage() {
   const { data: session } = useSession()
@@ -34,6 +50,7 @@ export default function ProfilePage() {
   const [badges, setBadges] = useState<BadgeData[]>([])
   const [loading, setLoading] = useState(true)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const [heatmapTooltip, setHeatmapTooltip] = useState<{ day: DayActivity; x: number; y: number } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -166,35 +183,80 @@ export default function ProfilePage() {
             ))}
           </div>
 
-          {/* Streak calendar */}
-          {userData.streakRecords.length > 0 && (
-            <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-6">
-              <h2 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
-                <Flame size={18} className="text-orange-500" /> Activity Streak
-              </h2>
-              <div className="flex gap-2 flex-wrap">
-                {userData.streakRecords.slice(0, 12).reverse().map((record, i) => {
-                  const level = record.activityLevel ?? (record.hasActivity ? 'light' : 'none')
-                  return (
-                    <div
-                      key={i}
-                      title={`${new Date(record.weekStartDate).toLocaleDateString()}${level === 'high' ? ' · High activity' : level === 'light' ? ' · Light activity' : ' · No activity'}`}
-                      className={`w-10 h-10 rounded-lg flex items-center justify-center text-xs font-semibold ${
-                        level === 'high'  ? 'bg-green-500 text-white' :
-                        level === 'light' ? 'bg-yellow-400 text-white' :
-                        'bg-gray-100 text-gray-400'
-                      }`}
-                    >
-                      {level === 'high' ? '🔥' : level === 'light' ? '✓' : '○'}
-                    </div>
-                  )
-                })}
-              </div>
-              <p className="text-xs text-gray-400 mt-3">
-                <span className="inline-flex items-center gap-1 mr-3"><span className="w-3 h-3 rounded bg-green-500 inline-block" /> High activity</span>
-                <span className="inline-flex items-center gap-1 mr-3"><span className="w-3 h-3 rounded bg-yellow-400 inline-block" /> Light activity</span>
-                <span className="inline-flex items-center gap-1"><span className="w-3 h-3 rounded bg-gray-200 inline-block" /> None</span>
-              </p>
+          {/* Day-wise activity heatmap */}
+          <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-6">
+            <h2 className="font-bold text-gray-900 mb-1 flex items-center gap-2">
+              <Flame size={18} className="text-orange-500" /> Activity
+            </h2>
+            <p className="text-xs text-gray-400 mb-4">Last 12 weeks · hover a square to see what happened</p>
+
+            {/* Day labels */}
+            <div className="flex gap-1 mb-1">
+              {['M','T','W','T','F','S','S'].map((d, i) => (
+                <div key={i} className="w-3 text-center text-[9px] text-gray-300 font-medium">{d}</div>
+              ))}
+            </div>
+
+            {/* Grid */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateRows: 'repeat(7, 12px)',
+                gridAutoFlow: 'column',
+                gap: '3px',
+                width: 'fit-content',
+              }}
+            >
+              {(userData.dailyActivity ?? []).map((day) => (
+                <div
+                  key={day.date}
+                  onMouseEnter={(e) => {
+                    const r = e.currentTarget.getBoundingClientRect()
+                    setHeatmapTooltip({ day, x: r.right + 8, y: r.top })
+                  }}
+                  onMouseLeave={() => setHeatmapTooltip(null)}
+                  style={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: 2,
+                    background: HEATMAP_COLORS[day.level],
+                  }}
+                />
+              ))}
+            </div>
+
+            {/* Legend */}
+            <div className="flex items-center gap-4 mt-3">
+              {([
+                { color: HEATMAP_COLORS.none,   label: 'None'     },
+                { color: HEATMAP_COLORS.light,  label: '1 action' },
+                { color: HEATMAP_COLORS.medium, label: '2–3'      },
+                { color: HEATMAP_COLORS.high,   label: '4+'       },
+              ] as { color: string; label: string }[]).map(({ color, label }) => (
+                <span key={label} className="flex items-center gap-1 text-xs text-gray-400">
+                  <span style={{ width: 10, height: 10, borderRadius: 2, background: color, display: 'inline-block', flexShrink: 0 }} />
+                  {label}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Heatmap tooltip — rendered at page level to avoid overflow clipping */}
+          {heatmapTooltip && (
+            <div
+              style={{ position: 'fixed', left: heatmapTooltip.x, top: heatmapTooltip.y - 4, zIndex: 50, pointerEvents: 'none' }}
+              className="bg-gray-900 text-white text-xs rounded-lg px-3 py-2 shadow-xl max-w-[200px]"
+            >
+              <p className="font-semibold text-gray-200 mb-1">{heatmapTooltip.day.date}</p>
+              {heatmapTooltip.day.events.length > 0
+                ? heatmapTooltip.day.events.map((e, i) => (
+                    <p key={i} className="text-gray-400 leading-relaxed">· {e}</p>
+                  ))
+                : <p className="text-gray-500">No activity</p>
+              }
+              {heatmapTooltip.day.xp > 0 && (
+                <p className="text-yellow-400 font-semibold mt-1">+{heatmapTooltip.day.xp} XP</p>
+              )}
             </div>
           )}
 

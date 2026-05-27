@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import Anthropic from '@anthropic-ai/sdk'
+import { logActivity } from '@/lib/activity'
+import { checkWeekComplete, awardXP } from '@/lib/gamification'
 
 const anthropic = new Anthropic()
 
@@ -29,7 +31,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   const topic = await prisma.topic.findUnique({
     where: { id: params.id },
-    include: { subtopics: { select: { title: true, description: true } } },
+    include: {
+      subtopics: { select: { title: true, description: true } },
+      week: { select: { id: true, number: true } },
+    },
   })
   if (!topic) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
@@ -76,22 +81,36 @@ Use "needs_revision" if score < 6. Be encouraging but direct. Focus on depth of 
     aiFeedback = typeof parsed.feedback === 'string' ? parsed.feedback : null
     status = parsed.status === 'needs_revision' ? 'needs_revision' : 'approved'
   } catch {
-    // AI unavailable — still save the reflection as approved
     status = 'approved'
   }
 
-  const existing = await prisma.topicReflection.findUnique({
+  const isFirstSubmission = !(await prisma.topicReflection.findUnique({
     where: { userId_topicId: { userId, topicId: params.id } },
-  })
+  }))
 
-  const reflection = existing
-    ? await prisma.topicReflection.update({
+  const reflection = isFirstSubmission
+    ? await prisma.topicReflection.create({
+        data: { userId, topicId: params.id, content: content.trim(), aiScore, aiFeedback, status },
+      })
+    : await prisma.topicReflection.update({
         where: { userId_topicId: { userId, topicId: params.id } },
         data: { content: content.trim(), aiScore, aiFeedback, status, revisedAt: new Date() },
       })
-    : await prisma.topicReflection.create({
-        data: { userId, topicId: params.id, content: content.trim(), aiScore, aiFeedback, status },
-      })
 
-  return NextResponse.json(reflection)
+  await logActivity(userId, 'reflection_submit')
+
+  const badgesEarned: { id: string; name: string; iconEmoji: string }[] = []
+
+  // Award reflection XP on first submission with an AI score
+  if (isFirstSubmission && aiScore != null) {
+    await awardXP(userId, 50, 'reflection_submit', 'topic_reflection', reflection.id)
+  }
+
+  // Check week completion after reflection is evaluated
+  if (aiScore != null && topic.week) {
+    const weekBadge = await checkWeekComplete(userId, topic.week.id)
+    if (weekBadge) badgesEarned.push(weekBadge)
+  }
+
+  return NextResponse.json({ ...reflection, badgesEarned })
 }

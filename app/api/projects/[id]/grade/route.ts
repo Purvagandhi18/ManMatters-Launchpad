@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
-import { awardProjectXP } from '@/lib/gamification'
+import { awardProjectXP, checkShipIt, BadgeResult } from '@/lib/gamification'
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
@@ -14,7 +14,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   const project = await prisma.project.findUnique({
     where: { id: params.id },
-    include: { criteria: true },
+    include: {
+      criteria: true,
+      subtopic: { include: { topic: { include: { week: { select: { id: true, number: true } } } } } },
+    },
   })
   if (!project) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
@@ -40,16 +43,17 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     },
   })
 
-  const submission = await prisma.projectSubmission.findUnique({
-    where: { id: submissionId },
-  })
+  const submission = await prisma.projectSubmission.findUnique({ where: { id: submissionId } })
+  const badgesEarned: BadgeResult[] = []
+
   if (submission) {
-    await awardProjectXP(submission.userId, grade.id, scorePct)
+    const learnerId = submission.userId
+    await awardProjectXP(learnerId, grade.id, scorePct)
 
     await prisma.userSubtopicProgress.upsert({
-      where: { userId_subtopicId: { userId: submission.userId, subtopicId: project.subtopicId } },
+      where: { userId_subtopicId: { userId: learnerId, subtopicId: project.subtopicId } },
       create: {
-        userId: submission.userId,
+        userId: learnerId,
         subtopicId: project.subtopicId,
         projectRequired: true,
         projectSubmitted: true,
@@ -58,7 +62,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       },
       update: { projectGraded: true, completedAt: new Date() },
     })
+
+    // Check Ship It for the week this project belongs to
+    const week = project.subtopic.topic.week
+    const shipBadge = await checkShipIt(learnerId, week.id, week.number)
+    if (shipBadge) badgesEarned.push(shipBadge)
   }
 
-  return NextResponse.json(grade)
+  return NextResponse.json({ ...grade, badgesEarned })
 }

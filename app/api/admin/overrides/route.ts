@@ -9,7 +9,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   const adminId = (session.user as { id: string }).id
-  const { action, userId, weekId, subtopicId, reason } = await req.json()
+  const { action, userId, weekId, subtopicId, quizId, reason } = await req.json()
 
   if (action === 'unlock_week') {
     await prisma.userWeekProgress.upsert({
@@ -35,14 +35,29 @@ export async function POST(req: Request) {
         data: { quizPassed: false, completedAt: null },
       })
     }
+  } else if (action === 'quiz_retry_grant') {
+    console.log(`quiz_retry_grant: admin=${adminId} user=${userId} quiz=${quizId}`)
   }
+
+  const referenceType =
+    action === 'unlock_week' || action === 'lock_week' ? 'week' :
+    action === 'reset_quiz' ? 'subtopic' :
+    action === 'quiz_retry_grant' ? 'quiz' :
+    undefined
+
+  const referenceId =
+    action === 'unlock_week' || action === 'lock_week' ? weekId :
+    action === 'reset_quiz' ? subtopicId :
+    action === 'quiz_retry_grant' ? quizId :
+    weekId ?? subtopicId
 
   await prisma.adminOverrideLog.create({
     data: {
       adminId,
       targetUserId: userId,
       actionType: action,
-      referenceId: weekId ?? subtopicId,
+      referenceType,
+      referenceId,
       reason,
     },
   })

@@ -4,76 +4,54 @@ import bcrypt from 'bcryptjs'
 const prisma = new PrismaClient()
 
 async function main() {
-  console.log('Clearing database...')
+  console.log('Checking database state...')
 
-  // Delete in FK-safe order
-  await prisma.adminOverrideLog.deleteMany()
-  await prisma.userBadge.deleteMany()
-  await prisma.badge.deleteMany()
-  await prisma.streakRecord.deleteMany()
-  await prisma.xPTransaction.deleteMany()
-  await prisma.projectCriterionScore.deleteMany()
-  await prisma.projectGrade.deleteMany()
-  await prisma.projectSubmission.deleteMany()
-  await prisma.rubricCriterion.deleteMany()
-  await prisma.project.deleteMany()
-  await prisma.quizAttemptAnswer.deleteMany()
-  await prisma.quizAttempt.deleteMany()
-  await prisma.answerOption.deleteMany()
-  await prisma.question.deleteMany()
-  await prisma.quiz.deleteMany()
-  await prisma.reference.deleteMany()
-  await prisma.userSubtopicProgress.deleteMany()
-  await prisma.userWeekProgress.deleteMany()
-  await prisma.subtopic.deleteMany()
-  await prisma.topic.deleteMany()
-  await prisma.week.deleteMany()
-  await prisma.user.deleteMany()
-  await prisma.cohort.deleteMany()
-
-  console.log('Creating cohort...')
-  const cohort = await prisma.cohort.create({
-    data: {
-      name: 'Cohort 1 - May 2026',
-      startDate: new Date('2026-05-01'),
-    },
-  })
-
-  console.log('Creating users...')
   const adminPassword  = await bcrypt.hash('admin123',   10)
   const kunalPassword  = await bcrypt.hash('Learner123', 10)
   const sabikaPassword = await bcrypt.hash('Learner456', 10)
+  const testPassword   = await bcrypt.hash('Test123',    10)
 
-  await prisma.user.create({
-    data: {
-      email: 'admin@manmatters.com',
-      password: adminPassword,
-      displayName: 'Admin',
-      role: 'admin',
-    },
+  // Ensure cohort exists
+  let cohort = await prisma.cohort.findFirst({ where: { name: 'Cohort 1 - May 2026' } })
+  if (!cohort) {
+    cohort = await prisma.cohort.create({
+      data: { name: 'Cohort 1 - May 2026', startDate: new Date('2026-05-01') },
+    })
+  }
+
+  console.log('Ensuring users...')
+  await prisma.user.upsert({
+    where: { email: 'admin@manmatters.com' },
+    create: { email: 'admin@manmatters.com', username: 'admin', password: adminPassword, displayName: 'Admin', role: 'admin' },
+    update: { username: 'admin', password: adminPassword },
   })
 
-  const kunal = await prisma.user.create({
-    data: {
-      email: 'kunal@manmatters.com',
-      password: kunalPassword,
-      displayName: 'Kunal',
-      role: 'learner',
-      cohortId: cohort.id,
-      learnerTitle: 'CURIOUS',
-    },
+  const kunal = await prisma.user.upsert({
+    where: { email: 'kunal@manmatters.com' },
+    create: { email: 'kunal@manmatters.com', username: 'kunal', password: kunalPassword, displayName: 'Kunal', role: 'learner', cohortId: cohort.id, learnerTitle: 'CURIOUS' },
+    update: { username: 'kunal', password: kunalPassword, learnerTitle: 'CURIOUS' },
   })
 
-  const sabika = await prisma.user.create({
-    data: {
-      email: 'sabika@manmatters.com',
-      password: sabikaPassword,
-      displayName: 'Sabika',
-      role: 'learner',
-      cohortId: cohort.id,
-      learnerTitle: 'BUILDER',
-    },
+  const sabika = await prisma.user.upsert({
+    where: { email: 'sabika@manmatters.com' },
+    create: { email: 'sabika@manmatters.com', username: 'sabika', password: sabikaPassword, displayName: 'Sabika', role: 'learner', cohortId: cohort.id, learnerTitle: 'BUILDER' },
+    update: { username: 'sabika', password: sabikaPassword, learnerTitle: 'BUILDER' },
   })
+
+  const test = await prisma.user.upsert({
+    where: { email: 'test@internal.manmatters.com' },
+    create: { email: 'test@internal.manmatters.com', username: 'test', password: testPassword, displayName: 'Test User', role: 'learner', cohortId: cohort.id, learnerTitle: 'TESTER', isTestUser: true },
+    update: { username: 'test', password: testPassword, isTestUser: true },
+  })
+
+  // If curriculum already exists, just ensure unlocks and return
+  const existingWeeks = await prisma.week.count()
+  if (existingWeeks > 0) {
+    console.log('Curriculum already exists — skipping curriculum seed.')
+    await ensureWeek1Unlocked([kunal.id, sabika.id, test.id])
+    console.log('Seed complete!')
+    return
+  }
 
   console.log('Creating weeks...')
   const weeksData = [
@@ -89,7 +67,11 @@ async function main() {
 
   const weeks: Record<number, string> = {}
   for (const w of weeksData) {
-    const week = await prisma.week.create({ data: w })
+    const week = await prisma.week.upsert({
+      where: { number: w.number },
+      create: w,
+      update: {},
+    })
     weeks[w.number] = week.id
   }
 
@@ -1238,6 +1220,7 @@ async function main() {
 
   console.log('Creating badges...')
   await prisma.badge.createMany({
+    skipDuplicates: true,
     data: [
       { name: 'Bootloaded',      description: 'Complete Week 1: Boot Sequence',          iconEmoji: '🔧', conditionType: 'week_complete', conditionValue: '1',             isSpecial: false },
       { name: 'Wired In',        description: 'Complete Week 2: AI in the Wild',          iconEmoji: '🤖', conditionType: 'week_complete', conditionValue: '2',             isSpecial: false },
@@ -1247,43 +1230,46 @@ async function main() {
       { name: 'Growth Mode',     description: 'Complete Week 6: Growth Loops',            iconEmoji: '📈', conditionType: 'week_complete', conditionValue: '6',             isSpecial: false },
       { name: 'Almost Shipped',  description: 'Complete Week 7: Brand Voice',             iconEmoji: '✍️', conditionType: 'week_complete', conditionValue: '7',             isSpecial: false },
       { name: 'Fully Deployed',  description: 'Complete all 8 weeks',                    iconEmoji: '🌟', conditionType: 'week_complete', conditionValue: '8',             isSpecial: true  },
-      { name: 'Quiz Master',     description: 'Score 95%+ on 5 or more quizzes',         iconEmoji: '🧠', conditionType: 'special',        conditionValue: 'quiz_master',   isSpecial: true  },
-      { name: 'Perfectionist',   description: 'Score 100% on every quiz in a week',       iconEmoji: '💎', conditionType: 'special',        conditionValue: 'perfectionist', isSpecial: true  },
-      { name: 'Ship It',         description: 'All program projects submitted and graded',iconEmoji: '📦', conditionType: 'special',        conditionValue: 'ship_it',       isSpecial: true  },
-      { name: 'Streak Lord',     description: 'Maintain a 4-week learning streak',        iconEmoji: '🔥', conditionType: 'special',        conditionValue: 'streak_lord',   isSpecial: true  },
-      { name: 'Speed Runner',    description: 'Complete Week 1 within 5 days',            iconEmoji: '⚡', conditionType: 'special',        conditionValue: 'speed_runner',  isSpecial: true  },
-      { name: 'Early Operator',  description: 'Member of the founding cohort',            iconEmoji: '🎖️', conditionType: 'special',       conditionValue: 'early_operator',isSpecial: false },
-      { name: 'All-Star',        description: 'Complete the full 8-week program',         iconEmoji: '⭐', conditionType: 'special',        conditionValue: 'all_star',      isSpecial: true  },
+      { name: 'Quiz Master',     description: 'Score 95%+ on 5 or more distinct quizzes',          iconEmoji: '🧠', conditionType: 'special',            conditionValue: 'quiz_master',   isSpecial: true  },
+      { name: 'Perfectionist',   description: '90%+ on every required quiz in a week, first attempt',iconEmoji: '💎', conditionType: 'weekly_performance', conditionValue: 'perfectionist', isSpecial: true  },
+      { name: 'Ship It',         description: 'All required projects for a week submitted and graded',iconEmoji: '📦', conditionType: 'weekly_performance', conditionValue: 'ship_it',       isSpecial: true  },
+      { name: 'Streak Lord',     description: 'Maintain a 4-week learning streak',                   iconEmoji: '🔥', conditionType: 'special',            conditionValue: 'streak_lord',   isSpecial: true  },
+      { name: 'Early Operator',  description: 'Member of the founding cohort',                       iconEmoji: '🎖️', conditionType: 'special',           conditionValue: 'early_operator',isSpecial: false },
+      { name: 'First 1K',        description: 'Earn 1,000 XP',                                       iconEmoji: '⚡', conditionType: 'xp_milestone',       conditionValue: '1000',          isSpecial: false },
+      { name: '5K Club',         description: 'Earn 5,000 XP',                                       iconEmoji: '💫', conditionType: 'xp_milestone',       conditionValue: '5000',          isSpecial: false },
+      { name: '10K Club',        description: 'Earn 10,000 XP',                                      iconEmoji: '🏆', conditionType: 'xp_milestone',       conditionValue: '10000',         isSpecial: true  },
     ],
   })
 
   console.log('Unlocking Week 1 for learners...')
-  const week1Record = await prisma.week.findUnique({ where: { number: 1 } })
-  if (week1Record) {
-    for (const learner of [kunal, sabika]) {
-      await prisma.userWeekProgress.create({
-        data: {
-          userId: learner.id,
-          weekId: week1Record.id,
-          isUnlocked: true,
-          unlockedAt: new Date(),
-          unlockedByAdmin: false,
-        },
-      })
-    }
-  }
+  await ensureWeek1Unlocked([kunal.id, sabika.id, test.id])
 
   console.log('Awarding Early Operator badge...')
   const earlyOpBadge = await prisma.badge.findFirst({ where: { conditionValue: 'early_operator' } })
   if (earlyOpBadge) {
     for (const learner of [kunal, sabika]) {
-      await prisma.userBadge.create({
-        data: { userId: learner.id, badgeId: earlyOpBadge.id },
+      const existing = await prisma.userBadge.findFirst({
+        where: { userId: learner.id, badgeId: earlyOpBadge.id, weekNumber: null },
       })
+      if (!existing) {
+        await prisma.userBadge.create({ data: { userId: learner.id, badgeId: earlyOpBadge.id } })
+      }
     }
   }
 
   console.log('Seed complete!')
+}
+
+async function ensureWeek1Unlocked(learnerIds: string[]) {
+  const week1 = await prisma.week.findUnique({ where: { number: 1 } })
+  if (!week1) return
+  for (const userId of learnerIds) {
+    await prisma.userWeekProgress.upsert({
+      where: { userId_weekId: { userId, weekId: week1.id } },
+      create: { userId, weekId: week1.id, isUnlocked: true, unlockedAt: new Date(), unlockedByAdmin: false },
+      update: {},
+    })
+  }
 }
 
 type QuestionInput = {

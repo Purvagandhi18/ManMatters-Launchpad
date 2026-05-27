@@ -11,10 +11,12 @@ datasource db {
 model User {
   id            String   @id @default(cuid())
   email         String   @unique
+  username      String?  @unique
   password      String
   displayName   String
   avatarUrl     String?
   learnerTitle  String?
+  isTestUser    Boolean  @default(false)
   role          String   @default("learner")
   cohortId     String?
   cohort       Cohort?  @relation(fields: [cohortId], references: [id])
@@ -29,6 +31,7 @@ model User {
   userBadges         UserBadge[]
   streakRecords      StreakRecord[]
   topicReflections   TopicReflection[]
+  activityEvents     ActivityEvent[]
 
   @@map("users")
 }
@@ -277,14 +280,15 @@ model Badge {
 }
 
 model UserBadge {
-  id       String   @id @default(cuid())
-  userId   String
-  user     User     @relation(fields: [userId], references: [id])
-  badgeId  String
-  badge    Badge    @relation(fields: [badgeId], references: [id])
-  earnedAt DateTime @default(now())
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  badgeId    String
+  badge      Badge    @relation(fields: [badgeId], references: [id])
+  earnedAt   DateTime @default(now())
+  weekNumber Int?     // null for one-time badges; 1-8 for recurring weekly badges
 
-  @@unique([userId, badgeId])
+  @@unique([userId, badgeId, weekNumber])
   @@map("user_badges")
 }
 
@@ -343,6 +347,17 @@ model AdminOverrideLog {
   createdAt     DateTime @default(now())
 
   @@map("admin_override_logs")
+}
+
+model ActivityEvent {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  type      String
+  score     Int      @default(1)
+  createdAt DateTime @default(now())
+
+  @@map("activity_events")
 }
 
 model TopicReflection {

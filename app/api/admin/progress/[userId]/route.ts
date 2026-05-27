@@ -20,15 +20,24 @@ export async function GET(_: Request, { params }: { params: { userId: string } }
         },
       },
       quizAttempts: {
-        orderBy: { startedAt: 'desc' },
+        orderBy: [{ startedAt: 'asc' }, { attemptNumber: 'asc' }],
         include: {
-          quiz: { include: { subtopic: true } },
-          answers: { include: { question: true, selectedOption: true } },
+          quiz: {
+            include: {
+              subtopic: { include: { topic: { include: { week: true } } } },
+            },
+          },
+          answers: {
+            include: {
+              question: { include: { options: { orderBy: { sortOrder: 'asc' } } } },
+              selectedOption: true,
+            },
+          },
         },
       },
       projectSubmissions: {
         include: {
-          project: true,
+          project: { include: { criteria: { orderBy: { sortOrder: 'asc' } } } },
           grade: { include: { criterionScores: { include: { criterion: true } } } },
         },
       },
@@ -47,5 +56,11 @@ export async function GET(_: Request, { params }: { params: { userId: string } }
   const level = getLevelFromXP(totalXP)
   const { password: _pw, ...userWithoutPassword } = user
 
-  return NextResponse.json({ ...userWithoutPassword, totalXP, streak, level })
+  const retryGrants = await prisma.adminOverrideLog.findMany({
+    where: { targetUserId: params.userId, actionType: 'quiz_retry_grant', referenceType: 'quiz' },
+    select: { referenceId: true },
+  })
+  const retryGrantedQuizIds = retryGrants.map(g => g.referenceId).filter(Boolean) as string[]
+
+  return NextResponse.json({ ...userWithoutPassword, totalXP, streak, level, retryGrantedQuizIds })
 }

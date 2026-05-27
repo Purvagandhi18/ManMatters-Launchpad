@@ -36,6 +36,7 @@ export async function GET() {
         id: l.id,
         displayName: l.displayName,
         email: l.email,
+        isTestUser: l.isTestUser,
         totalXP,
         level,
         streak,

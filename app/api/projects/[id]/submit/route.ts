@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { markStreakActivity } from '@/lib/gamification'
+import { logActivity } from '@/lib/activity'
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
@@ -23,6 +24,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     update: { projectSubmitted: true },
   })
 
+  await logActivity(userId, 'project_submit')
   await markStreakActivity(userId)
 
   return NextResponse.json(submission)

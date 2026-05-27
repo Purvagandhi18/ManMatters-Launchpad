@@ -6,6 +6,7 @@ import { CheckCircle2, XCircle, ChevronLeft, ChevronRight, ArrowRight, Zap } fro
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
 import { LevelUpOverlay } from '@/components/ui/LevelUpOverlay'
+import { BadgeUnlockModal } from '@/components/ui/BadgeUnlockModal'
 import { useConfetti } from '@/components/ui/ConfettiCannon'
 import { getLevelFromXP } from '@/lib/gamification'
 
@@ -24,6 +25,7 @@ interface QuizResult {
   rawScore: number
   maxScore: number
   passed: boolean
+  badgesEarned?: { id: string; name: string; iconEmoji: string; description?: string }[]
   questions: {
     id: string; text: string; type: string; options: AnswerOption[]
     correctOptionId?: string; selectedOptionId?: string; isCorrect?: boolean | null
@@ -77,6 +79,8 @@ export default function QuizPage() {
   const [xpBefore, setXPBefore]   = useState<number | null>(null)
   const [levelUp, setLevelUp]     = useState<{ name: string; number: number } | null>(null)
   const [showXPBadge, setShowXPBadge] = useState(false)
+  const [unlockedBadge, setUnlockedBadge] = useState<{ name: string; description: string; iconEmoji: string } | null>(null)
+  const [badgeQueue, setBadgeQueue] = useState<{ name: string; description: string; iconEmoji: string }[]>([])
 
   useEffect(() => {
     // Capture XP before quiz
@@ -109,8 +113,20 @@ export default function QuizPage() {
     setSubmitting(false)
 
     if (data.passed) {
-      // Fire confetti after a short delay (score reveal moment)
       setTimeout(() => fireConfetti('medium'), 800)
+
+      // Show badge unlock modals (queue them)
+      if (data.badgesEarned?.length) {
+        const badges = data.badgesEarned.map((b: any) => ({
+          name: b.name,
+          description: b.description ?? '',
+          iconEmoji: b.iconEmoji,
+        }))
+        setTimeout(() => {
+          setBadgeQueue(badges.slice(1))
+          setUnlockedBadge(badges[0])
+        }, 1400)
+      }
 
       // Check for level-up
       setTimeout(async () => {
@@ -140,6 +156,19 @@ export default function QuizPage() {
           levelName={levelUp?.name ?? ''}
           levelNumber={levelUp?.number ?? 1}
           onClose={() => setLevelUp(null)}
+        />
+        <BadgeUnlockModal
+          open={!!unlockedBadge}
+          badge={unlockedBadge}
+          onClose={() => {
+            // Dequeue next badge if any
+            if (badgeQueue.length > 0) {
+              setUnlockedBadge(badgeQueue[0])
+              setBadgeQueue(q => q.slice(1))
+            } else {
+              setUnlockedBadge(null)
+            }
+          }}
         />
 
         <div className="min-h-screen bg-gray-50 py-8 px-4">
