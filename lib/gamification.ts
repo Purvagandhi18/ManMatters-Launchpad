@@ -335,7 +335,7 @@ export async function checkShipIt(
             },
           },
           // Topic-level projects
-          project: { select: { id: true } },
+          projects: { select: { id: true } },
           userTopicProgress: { where: { userId }, select: { projectGraded: true } },
         },
       },
@@ -345,13 +345,13 @@ export async function checkShipIt(
 
   // Collect all projects across all scopes
   const subtopicProjects = week.topics.flatMap(t => t.subtopics).filter(s => s.project)
-  const topicProjects    = week.topics.filter(t => (t as any).project)
+  const topicProjects    = week.topics.filter(t => t.projects.length > 0)
 
   const totalProjects = subtopicProjects.length + topicProjects.length
   if (totalProjects === 0) return null
 
   const subtopicsAllGraded = subtopicProjects.every(s => s.userProgress[0]?.projectGraded === true)
-  const topicsAllGraded    = topicProjects.every(t => (t as any).userTopicProgress?.[0]?.projectGraded === true)
+  const topicsAllGraded    = topicProjects.every(t => t.userTopicProgress?.[0]?.projectGraded === true)
 
   if (!subtopicsAllGraded || !topicsAllGraded) return null
 
