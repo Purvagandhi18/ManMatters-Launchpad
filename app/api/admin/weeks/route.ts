@@ -16,10 +16,11 @@ export async function GET() {
       topics: {
         include: {
           _count: { select: { subtopics: true } },
+          projects: { select: { id: true } }, // topic-level projects
           subtopics: {
             include: {
               quiz: { select: { id: true, status: true } },
-              project: { select: { id: true } },
+              project: { select: { id: true } }, // subtopic-level projects
             },
           },
         },

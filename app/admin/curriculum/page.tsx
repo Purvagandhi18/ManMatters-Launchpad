@@ -18,6 +18,7 @@ interface WeekData {
   topics: {
     id: string
     _count: { subtopics: number }
+    projects: { id: string }[] // topic-level projects
     subtopics: {
       quiz: { id: string; status: string } | null
       project: { id: string } | null
@@ -88,7 +89,9 @@ export default function CurriculumPage() {
             {weeks.map(week => {
               const allSubtopics = week.topics.flatMap(t => t.subtopics)
               const liveQuizzes = allSubtopics.filter(s => s.quiz?.status === 'live').length
-              const projects = allSubtopics.filter(s => s.project).length
+              const subtopicProjects = allSubtopics.filter(s => s.project).length
+              const topicProjects = week.topics.reduce((sum, t) => sum + (t.projects?.length ?? 0), 0)
+              const projects = subtopicProjects + topicProjects
               const totalSubs = allSubtopics.length
 
               return (
