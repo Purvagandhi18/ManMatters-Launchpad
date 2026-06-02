@@ -10,6 +10,7 @@ export async function GET() {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  try {
   const learners = await prisma.user.findMany({
     where: { role: 'learner' },
     include: {
@@ -49,4 +50,8 @@ export async function GET() {
   )
 
   return NextResponse.json(result)
+  } catch (e: any) {
+    console.error('[admin/progress] DB error:', e?.message)
+    return NextResponse.json({ error: 'Database error — please retry' }, { status: 503 })
+  }
 }

@@ -211,6 +211,9 @@ export async function checkWeekComplete(
   if (!week) return null
 
   for (const topic of week.topics) {
+    // Skip capstone topics — they are not part of the week-completion gate
+    if (topic.tag === 'capstone') continue
+
     // Check all quiz subtopics are passed
     for (const subtopic of topic.subtopics) {
       if (!subtopic.quiz) continue
@@ -225,9 +228,25 @@ export async function checkWeekComplete(
     }
   }
 
-  // All checks passed — award badge + XP
+  // All checks passed — mark current week as completed
+  await prisma.userWeekProgress.upsert({
+    where: { userId_weekId: { userId, weekId } },
+    create: { userId, weekId, isUnlocked: true, isCompleted: true, completedAt: new Date() },
+    update: { isCompleted: true, completedAt: new Date() },
+  })
+
+  // Unlock the next week if it exists
+  const nextWeek = await prisma.week.findFirst({ where: { number: week.number + 1 } })
+  if (nextWeek) {
+    await prisma.userWeekProgress.upsert({
+      where: { userId_weekId: { userId, weekId: nextWeek.id } },
+      create: { userId, weekId: nextWeek.id, isUnlocked: true, unlockedAt: new Date() },
+      update: { isUnlocked: true },
+    })
+  }
+
+  // Award badge + XP (idempotent — returns null if already earned)
   const newBadge = await awardOneTimeBadge(userId, 'week_complete', String(week.number))
-  // Only award week-complete XP once (badge award returns null if already earned)
   if (newBadge) {
     await awardWeekCompleteXP(userId, weekId)
   }
@@ -308,26 +327,33 @@ export async function checkShipIt(
     include: {
       topics: {
         include: {
+          // Legacy subtopic-level projects
           subtopics: {
             include: {
               project: { select: { id: true } },
               userProgress: { where: { userId }, select: { projectGraded: true } },
             },
           },
+          // Topic-level projects
+          project: { select: { id: true } },
+          userTopicProgress: { where: { userId }, select: { projectGraded: true } },
         },
       },
     },
   })
   if (!week) return null
 
-  const projectSubtopics = week.topics
-    .flatMap(t => t.subtopics)
-    .filter(s => s.project)
+  // Collect all projects across all scopes
+  const subtopicProjects = week.topics.flatMap(t => t.subtopics).filter(s => s.project)
+  const topicProjects    = week.topics.filter(t => (t as any).project)
 
-  if (projectSubtopics.length === 0) return null
+  const totalProjects = subtopicProjects.length + topicProjects.length
+  if (totalProjects === 0) return null
 
-  const allGraded = projectSubtopics.every(s => s.userProgress[0]?.projectGraded === true)
-  if (!allGraded) return null
+  const subtopicsAllGraded = subtopicProjects.every(s => s.userProgress[0]?.projectGraded === true)
+  const topicsAllGraded    = topicProjects.every(t => (t as any).userTopicProgress?.[0]?.projectGraded === true)
+
+  if (!subtopicsAllGraded || !topicsAllGraded) return null
 
   return awardWeeklyBadge(userId, 'ship_it', weekNumber)
 }

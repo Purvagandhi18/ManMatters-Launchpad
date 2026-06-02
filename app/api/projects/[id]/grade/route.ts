@@ -16,7 +16,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     where: { id: params.id },
     include: {
       criteria: true,
+      // Include all possible scope relations to resolve week number for badges
       subtopic: { include: { topic: { include: { week: { select: { id: true, number: true } } } } } },
+      topic: { include: { week: { select: { id: true, number: true } } } },
+      week: { select: { id: true, number: true } },
     },
   })
   if (!project) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -50,23 +53,66 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const learnerId = submission.userId
     await awardProjectXP(learnerId, grade.id, scorePct)
 
-    await prisma.userSubtopicProgress.upsert({
-      where: { userId_subtopicId: { userId: learnerId, subtopicId: project.subtopicId } },
-      create: {
-        userId: learnerId,
-        subtopicId: project.subtopicId,
-        projectRequired: true,
-        projectSubmitted: true,
-        projectGraded: true,
-        completedAt: new Date(),
-      },
-      update: { projectGraded: true, completedAt: new Date() },
-    })
+    // Resolve week for badge checks
+    let weekId: string | null = null
+    let weekNumber: number | null = null
 
-    // Check Ship It for the week this project belongs to
-    const week = project.subtopic.topic.week
-    const shipBadge = await checkShipIt(learnerId, week.id, week.number)
-    if (shipBadge) badgesEarned.push(shipBadge)
+    if (project.topicId && project.topic) {
+      // Topic-level project
+      await prisma.userTopicProgress.upsert({
+        where: { userId_topicId: { userId: learnerId, topicId: project.topicId } },
+        create: {
+          userId: learnerId,
+          topicId: project.topicId,
+          projectRequired: true,
+          projectSubmitted: true,
+          projectGraded: true,
+          completedAt: new Date(),
+        },
+        update: { projectGraded: true, completedAt: new Date() },
+      })
+      weekId = project.topic.week.id
+      weekNumber = project.topic.week.number
+
+    } else if (project.weekId && project.week) {
+      // Week-level project
+      await prisma.userWeekProgress.upsert({
+        where: { userId_weekId: { userId: learnerId, weekId: project.weekId } },
+        create: {
+          userId: learnerId,
+          weekId: project.weekId,
+          isUnlocked: true,
+          weekProjectSubmitted: true,
+          weekProjectGraded: true,
+        },
+        update: { weekProjectGraded: true },
+      })
+      weekId = project.week.id
+      weekNumber = project.week.number
+
+    } else if (project.subtopicId && project.subtopic) {
+      // Legacy: subtopic-level project
+      await prisma.userSubtopicProgress.upsert({
+        where: { userId_subtopicId: { userId: learnerId, subtopicId: project.subtopicId } },
+        create: {
+          userId: learnerId,
+          subtopicId: project.subtopicId,
+          projectRequired: true,
+          projectSubmitted: true,
+          projectGraded: true,
+          completedAt: new Date(),
+        },
+        update: { projectGraded: true, completedAt: new Date() },
+      })
+      weekId = project.subtopic.topic.week.id
+      weekNumber = project.subtopic.topic.week.number
+    }
+
+    // Check Ship It badge
+    if (weekId && weekNumber) {
+      const shipBadge = await checkShipIt(learnerId, weekId, weekNumber)
+      if (shipBadge) badgesEarned.push(shipBadge)
+    }
   }
 
   return NextResponse.json({ ...grade, badgesEarned })

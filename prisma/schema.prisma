@@ -25,6 +25,7 @@ model User {
 
   weekProgress       UserWeekProgress[]
   subtopicProgress   UserSubtopicProgress[]
+  topicProgress      UserTopicProgress[]
   quizAttempts       QuizAttempt[]
   projectSubmissions ProjectSubmission[]
   xpTransactions     XPTransaction[]
@@ -56,6 +57,7 @@ model Week {
 
   topics       Topic[]
   weekProgress UserWeekProgress[]
+  weekProject  Project?           @relation("WeekProject")
 
   @@map("weeks")
 }
@@ -68,9 +70,11 @@ model Topic {
   tag       String   @default("tech")
   sortOrder Int      @default(0)
 
-  subtopics   Subtopic[]
-  reflections TopicReflection[]
-  references  Reference[]
+  subtopics         Subtopic[]
+  reflections       TopicReflection[]
+  references        Reference[]
+  projects          Project[]          @relation("TopicProject")
+  userTopicProgress UserTopicProgress[]
 
   @@map("topics")
 }
@@ -182,19 +186,42 @@ model QuizAttemptAnswer {
 }
 
 model Project {
-  id             String   @id @default(cuid())
-  subtopicId     String   @unique
-  subtopic       Subtopic @relation(fields: [subtopicId], references: [id], onDelete: Cascade)
+  id             String    @id @default(cuid())
+  // Legacy: subtopic-level (nullable — all existing rows have this set)
+  subtopicId     String?   @unique
+  subtopic       Subtopic? @relation(fields: [subtopicId], references: [id], onDelete: Cascade)
+  // New: topic-level (multiple projects per topic allowed)
+  topicId        String?
+  topic          Topic?    @relation("TopicProject", fields: [topicId], references: [id], onDelete: Cascade)
+  // New: week-level
+  weekId         String?   @unique
+  week           Week?     @relation("WeekProject", fields: [weekId], references: [id], onDelete: Cascade)
   title          String
   briefText      String
   expectedOutput String
-  isPublished    Boolean  @default(true)
-  createdAt      DateTime @default(now())
+  isPublished    Boolean   @default(true)
+  isCapstone     Boolean   @default(false)
+  createdAt      DateTime  @default(now())
 
   criteria    RubricCriterion[]
   submissions ProjectSubmission[]
 
   @@map("projects")
+}
+
+model UserTopicProgress {
+  id               String    @id @default(cuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id])
+  topicId          String
+  topic            Topic     @relation(fields: [topicId], references: [id])
+  projectRequired  Boolean   @default(false)
+  projectSubmitted Boolean   @default(false)
+  projectGraded    Boolean   @default(false)
+  completedAt      DateTime?
+
+  @@unique([userId, topicId])
+  @@map("user_topic_progress")
 }
 
 model RubricCriterion {
@@ -310,11 +337,13 @@ model UserWeekProgress {
   user            User      @relation(fields: [userId], references: [id])
   weekId          String
   week            Week      @relation(fields: [weekId], references: [id])
-  isUnlocked      Boolean   @default(false)
-  isCompleted     Boolean   @default(false)
-  unlockedAt      DateTime?
-  completedAt     DateTime?
-  unlockedByAdmin Boolean   @default(false)
+  isUnlocked           Boolean   @default(false)
+  isCompleted          Boolean   @default(false)
+  unlockedAt           DateTime?
+  completedAt          DateTime?
+  unlockedByAdmin      Boolean   @default(false)
+  weekProjectSubmitted Boolean   @default(false)
+  weekProjectGraded    Boolean   @default(false)
 
   @@unique([userId, weekId])
   @@map("user_week_progress")
@@ -367,9 +396,10 @@ model TopicReflection {
   topicId    String
   topic      Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
   content    String
-  aiScore    Float?
-  aiFeedback String?
-  status     String   @default("submitted")
+  aiScore       Float?
+  aiFeedback    String?
+  isAiGenerated Boolean?
+  status        String   @default("submitted")
   submittedAt DateTime @default(now())
   revisedAt   DateTime?
 

@@ -45,6 +45,7 @@ interface ProjectData {
   expectedOutput: string
   criteria: RubricCriterion[]
   submissions: ProjectSubmission[]
+  // Legacy: subtopic-level
   subtopic: {
     id: string
     title: string
@@ -53,7 +54,15 @@ interface ProjectData {
       title: string
       week: { id: string; number: number; title: string }
     }
-  }
+  } | null
+  // Topic-level
+  topic: {
+    id: string
+    title: string
+    week: { id: string; number: number; title: string }
+  } | null
+  // Week-level
+  week: { id: string; number: number; title: string } | null
 }
 
 type Tab = 'brief' | 'rubric' | 'submission' | 'feedback'
@@ -113,7 +122,10 @@ export default function ProjectPage() {
 
   const latestSubmission = project.submissions[0]
   const grade = latestSubmission?.grade
-  const week = project.subtopic.topic.week
+
+  // Resolve week and context label from whichever scope is set
+  const week = project.subtopic?.topic.week ?? project.topic?.week ?? project.week
+  const contextLabel = project.subtopic?.topic.title ?? project.topic?.title ?? null
 
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
     { key: 'brief', label: 'Brief', icon: <BookOpen size={14} /> },
@@ -130,11 +142,11 @@ export default function ProjectPage() {
         <div className="max-w-3xl mx-auto px-4 h-13 flex items-center gap-2 py-3">
           {/* Back button */}
           <button
-            onClick={() => router.push(`/week/${week.id}`)}
+            onClick={() => week ? router.push(`/week/${week.id}`) : router.push('/dashboard')}
             className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors mr-1"
           >
             <ArrowLeft size={15} />
-            <span className="hidden sm:inline">Week {week.number}</span>
+            <span className="hidden sm:inline">{week ? `Week ${week.number}` : 'Back'}</span>
           </button>
 
           {/* Breadcrumb */}
@@ -143,10 +155,14 @@ export default function ProjectPage() {
               <LayoutDashboard size={13} />
               <span className="hidden sm:inline">Dashboard</span>
             </Link>
-            <ChevronRight size={13} className="text-gray-300 flex-shrink-0" />
-            <Link href={`/week/${week.id}`} className="text-gray-500 hover:text-gray-700 transition-colors flex-shrink-0 truncate max-w-[120px]">
-              Week {week.number}
-            </Link>
+            {week && (
+              <>
+                <ChevronRight size={13} className="text-gray-300 flex-shrink-0" />
+                <Link href={`/week/${week.id}`} className="text-gray-500 hover:text-gray-700 transition-colors flex-shrink-0 truncate max-w-[120px]">
+                  Week {week.number}
+                </Link>
+              </>
+            )}
             <ChevronRight size={13} className="text-gray-300 flex-shrink-0" />
             <span className="text-gray-900 font-medium truncate">{project.title}</span>
           </nav>
@@ -169,7 +185,7 @@ export default function ProjectPage() {
             <div>
               <p className="text-orange-100 text-xs font-semibold uppercase tracking-wide mb-1">Project</p>
               <h1 className="text-2xl font-bold">{project.title}</h1>
-              <p className="text-orange-100 text-xs mt-1">{project.subtopic.topic.title} · Week {week.number}</p>
+              <p className="text-orange-100 text-xs mt-1">{contextLabel ? `${contextLabel} · ` : ''}Week {week?.number}</p>
             </div>
             {submitted && (
               <div className="flex items-center gap-2 bg-white/20 px-3 py-1.5 rounded-full flex-shrink-0">
@@ -200,10 +216,10 @@ export default function ProjectPage() {
                 <LayoutDashboard size={15} /> Back to Dashboard
               </Link>
               <Link
-                href={`/week/${week.id}`}
+                href={week ? `/week/${week.id}` : '/dashboard'}
                 className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white text-gray-700 font-semibold text-sm hover:bg-gray-50 transition-colors border border-gray-200"
               >
-                <ArrowLeft size={15} /> Back to Week {week.number}
+                <ArrowLeft size={15} /> {week ? `Back to Week ${week.number}` : 'Dashboard'}
               </Link>
             </div>
           </div>
@@ -316,10 +332,10 @@ export default function ProjectPage() {
                         <LayoutDashboard size={15} /> Back to Dashboard
                       </Link>
                       <Link
-                        href={`/week/${week.id}`}
+                        href={week ? `/week/${week.id}` : '/dashboard'}
                         className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gray-50 text-gray-700 font-semibold text-sm hover:bg-gray-100 transition-colors border border-gray-200"
                       >
-                        <ArrowLeft size={15} /> Back to Week {week.number}
+                        <ArrowLeft size={15} /> {week ? `Back to Week ${week.number}` : 'Dashboard'}
                       </Link>
                     </div>
                   </div>
@@ -411,10 +427,10 @@ export default function ProjectPage() {
                     <LayoutDashboard size={15} /> Back to Dashboard
                   </Link>
                   <Link
-                    href={`/week/${week.id}`}
+                    href={week ? `/week/${week.id}` : '/dashboard'}
                     className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gray-50 text-gray-700 font-semibold text-sm hover:bg-gray-100 transition-colors border border-gray-200"
                   >
-                    <ArrowLeft size={15} /> Back to Week {week.number}
+                    <ArrowLeft size={15} /> {week ? `Back to Week ${week.number}` : 'Dashboard'}
                   </Link>
                 </div>
               </div>
