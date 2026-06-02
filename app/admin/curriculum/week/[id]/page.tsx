@@ -30,6 +30,12 @@ interface TopicData {
   sortOrder: number
   subtopics: SubtopicData[]
   references: ReferenceData[]
+  projects: { id: string; title: string }[] // topic-level projects (multiple)
+}
+
+interface WeekProject {
+  id: string
+  title: string
 }
 
 interface WeekData {
@@ -41,6 +47,7 @@ interface WeekData {
   badgeIcon?: string | null
   badgeName?: string | null
   topics: TopicData[]
+  weekProject?: WeekProject | null
 }
 
 export default function WeekEditorPage() {
@@ -56,6 +63,13 @@ export default function WeekEditorPage() {
   const [subtopicForm, setSubtopicForm] = useState({ title: '', tag: 'tech' })
   const [refModal, setRefModal] = useState<string | null>(null) // topicId
   const [refForm, setRefForm] = useState({ title: '', url: '', refType: 'article' })
+  // Project modals — subtopicId for topic-level, 'week' for week-level
+  const [projectModal, setProjectModal] = useState<string | null>(null)
+  const [projectForm, setProjectForm] = useState({
+    title: '', briefText: '', expectedOutput: '',
+    criteria: [{ name: '', description: '', maxMarks: 10 }],
+  })
+  const [savingProject, setSavingProject] = useState(false)
 
   useEffect(() => {
     fetch(`/api/admin/weeks/${params.id}`)
@@ -148,6 +162,46 @@ export default function WeekEditorPage() {
     } : w)
   }
 
+  async function deleteProject(projectId: string) {
+    if (!confirm('Delete this project? This will also delete all submissions and grades for it.')) return
+    await fetch('/api/admin/projects', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: projectId }) })
+    // Refresh week data
+    const updated = await fetch(`/api/admin/weeks/${params.id}`).then(r => r.json())
+    setWeek(updated)
+  }
+
+  // targetId: a topicId for topic-level, or 'week' for week-level
+  async function addProject(targetId: string) {
+    if (!week) return
+    setSavingProject(true)
+    try {
+      const isWeekLevel  = targetId === 'week'
+      const isTopicLevel = !isWeekLevel
+
+      await fetch('/api/admin/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...(isTopicLevel ? { topicId: targetId } : {}),
+          ...(isWeekLevel  ? { weekId: week.id, isCapstone: true } : {}),
+          title: projectForm.title,
+          briefText: projectForm.briefText,
+          expectedOutput: projectForm.expectedOutput,
+          isPublished: true,
+          criteria: projectForm.criteria.filter(c => c.name).map((c, i) => ({ ...c, sortOrder: i })),
+        }),
+      })
+
+      // Refresh week data so new project chips appear
+      const updated = await fetch(`/api/admin/weeks/${params.id}`).then(r => r.json())
+      setWeek(updated)
+      setProjectModal(null)
+      setProjectForm({ title: '', briefText: '', expectedOutput: '', criteria: [{ name: '', description: '', maxMarks: 10 }] })
+    } finally {
+      setSavingProject(false)
+    }
+  }
+
   async function deleteSubtopic(topicId: string, subtopicId: string) {
     if (!confirm('Delete this subtopic?')) return
     await fetch(`/api/admin/subtopics/${subtopicId}`, { method: 'DELETE' })
@@ -219,9 +273,30 @@ export default function WeekEditorPage() {
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
             />
           </div>
-          <Button onClick={saveWeek} disabled={saving} size="sm">
-            {saving ? 'Saving…' : 'Save Changes'}
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button onClick={saveWeek} disabled={saving} size="sm">
+              {saving ? 'Saving…' : 'Save Changes'}
+            </Button>
+            {week.weekProject ? (
+              <span className="inline-flex items-center gap-2">
+                <Link href={`/admin/project/${week.weekProject.id}`}>
+                  <Button size="sm" variant="secondary">
+                    <ClipboardList size={14} className="mr-1" /> {week.weekProject.title}
+                  </Button>
+                </Link>
+                <button onClick={() => deleteProject(week.weekProject!.id)} className="text-gray-400 hover:text-red-600 transition-colors" title="Delete week project">
+                  <Trash2 size={14} />
+                </button>
+              </span>
+            ) : (
+              <Button
+                size="sm" variant="secondary"
+                onClick={() => { setProjectModal('week'); setProjectForm({ title: '', briefText: '', expectedOutput: '', criteria: [{ name: '', description: '', maxMarks: 10 }] }) }}
+              >
+                <ClipboardList size={14} className="mr-1" /> Add Week Project
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Topics */}
@@ -269,8 +344,8 @@ export default function WeekEditorPage() {
                       )}
                       {sub.project && (
                         <Link href={`/admin/project/${sub.project.id}`}>
-                          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-orange-100 text-orange-700 inline-flex items-center gap-1">
-                            <ClipboardList size={10} /> Project
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-200 text-gray-500 inline-flex items-center gap-1" title="Legacy subtopic project">
+                            <ClipboardList size={10} /> Legacy
                           </span>
                         </Link>
                       )}
@@ -287,8 +362,8 @@ export default function WeekEditorPage() {
                   <div className="px-5 py-4 text-sm text-gray-400 text-center">No subtopics yet</div>
                 )}
 
-                {/* Topic-level resource links */}
-                <div className="px-5 py-3 bg-gray-50">
+                {/* Resources section */}
+                <div className="px-5 py-3 bg-gray-50 border-t border-gray-100">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-semibold text-gray-500 flex items-center gap-1.5">
                       <Link2 size={11} /> Resources ({topic.references.length})
@@ -305,6 +380,29 @@ export default function WeekEditorPage() {
                           <a href={ref.url} target="_blank" rel="noopener noreferrer" className="flex-1 text-brand-600 hover:underline truncate">{ref.title}</a>
                           <span className="text-gray-400 text-[10px] px-1.5 py-0.5 bg-gray-100 rounded-full">{ref.refType}</span>
                           <button onClick={() => deleteRef(topic.id, ref.id)} className="text-red-400 hover:text-red-600 flex-shrink-0"><Trash2 size={11} /></button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Projects section — same visual pattern as Resources */}
+                <div className="px-5 py-3 bg-gray-50 border-t border-gray-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold text-gray-500 flex items-center gap-1.5">
+                      <ClipboardList size={11} /> Projects ({topic.projects?.length ?? 0})
+                    </span>
+                    <Button size="sm" variant="ghost" onClick={() => { setProjectModal(topic.id); setProjectForm({ title: '', briefText: '', expectedOutput: '', criteria: [{ name: '', description: '', maxMarks: 10 }] }) }}>
+                      <Plus size={12} className="mr-1" /> Add
+                    </Button>
+                  </div>
+                  {topic.projects && topic.projects.length > 0 && (
+                    <div className="space-y-1.5">
+                      {topic.projects.map(proj => (
+                        <div key={proj.id} className="flex items-center gap-2 text-xs bg-white rounded-lg px-3 py-2 border border-gray-200">
+                          <ClipboardList size={10} className="text-orange-500 flex-shrink-0" />
+                          <Link href={`/admin/project/${proj.id}`} className="flex-1 text-orange-600 hover:underline truncate font-medium">{proj.title}</Link>
+                          <button onClick={() => deleteProject(proj.id)} className="text-red-400 hover:text-red-600 flex-shrink-0"><Trash2 size={11} /></button>
                         </div>
                       ))}
                     </div>
@@ -371,6 +469,81 @@ export default function WeekEditorPage() {
             <div className="flex gap-3">
               <Button variant="secondary" onClick={() => setRefModal(null)} className="flex-1">Cancel</Button>
               <Button onClick={() => refModal && addRef(refModal)} disabled={!refForm.title || !refForm.url} className="flex-1">Add</Button>
+            </div>
+          </div>
+        </Modal>
+
+        {/* Add Project Modal (topic-level or week-level) */}
+        <Modal
+          open={!!projectModal}
+          onClose={() => setProjectModal(null)}
+          title={projectModal === 'week' ? 'Add Week-Level Project' : 'Add Project to Subtopic'}
+          size="lg"
+        >
+          <div className="space-y-4">
+            {projectModal === 'week' && (
+              <div className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 text-xs text-blue-700">
+                This project will be attached at the week level. Admin must manually unlock it for learners.
+              </div>
+            )}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Project Title</label>
+              <input type="text" value={projectForm.title} onChange={e => setProjectForm(f => ({ ...f, title: e.target.value }))}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Brief / Instructions</label>
+              <textarea rows={4} value={projectForm.briefText} onChange={e => setProjectForm(f => ({ ...f, briefText: e.target.value }))}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Expected Output</label>
+              <input type="text" value={projectForm.expectedOutput} onChange={e => setProjectForm(f => ({ ...f, expectedOutput: e.target.value }))}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                placeholder="e.g. GitHub repo link + 2-min video walkthrough" />
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-gray-700">Rubric Criteria</label>
+                <button
+                  onClick={() => setProjectForm(f => ({ ...f, criteria: [...f.criteria, { name: '', description: '', maxMarks: 10 }] }))}
+                  className="text-xs text-brand-600 hover:text-brand-700 font-medium"
+                >+ Add criterion</button>
+              </div>
+              <div className="space-y-2">
+                {projectForm.criteria.map((c, i) => (
+                  <div key={i} className="grid grid-cols-12 gap-2 items-start">
+                    <input type="text" placeholder="Name" value={c.name}
+                      onChange={e => setProjectForm(f => ({ ...f, criteria: f.criteria.map((x, j) => j === i ? { ...x, name: e.target.value } : x) }))}
+                      className="col-span-3 px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                    <input type="text" placeholder="Description" value={c.description}
+                      onChange={e => setProjectForm(f => ({ ...f, criteria: f.criteria.map((x, j) => j === i ? { ...x, description: e.target.value } : x) }))}
+                      className="col-span-6 px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                    <input type="number" placeholder="Marks" value={c.maxMarks} min={1} max={100}
+                      onChange={e => setProjectForm(f => ({ ...f, criteria: f.criteria.map((x, j) => j === i ? { ...x, maxMarks: parseInt(e.target.value) || 10 } : x) }))}
+                      className="col-span-2 px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                    {projectForm.criteria.length > 1 && (
+                      <button onClick={() => setProjectForm(f => ({ ...f, criteria: f.criteria.filter((_, j) => j !== i) }))}
+                        className="col-span-1 flex items-center justify-center text-red-400 hover:text-red-600">
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-gray-400 mt-1">
+                Total marks: {projectForm.criteria.reduce((s, c) => s + (c.maxMarks || 0), 0)}
+              </p>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <Button variant="secondary" onClick={() => setProjectModal(null)} className="flex-1">Cancel</Button>
+              <Button
+                onClick={() => projectModal && addProject(projectModal)}
+                disabled={savingProject || !projectForm.title || !projectForm.briefText || projectForm.criteria.every(c => !c.name)}
+                className="flex-1"
+              >
+                {savingProject ? 'Creating…' : 'Create Project'}
+              </Button>
             </div>
           </div>
         </Modal>

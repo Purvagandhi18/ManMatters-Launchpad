@@ -98,6 +98,7 @@ interface TopicReflection {
   id: string
   content: string
   aiScore: number | null
+  isAiGenerated: boolean | null
   aiFeedback: string | null
   status: string
   submittedAt: string
@@ -695,13 +696,33 @@ export default function LearnerDetailPage() {
                   <div className="flex items-center justify-between mb-3">
                     <p className="text-sm font-semibold text-gray-900">{r.topic.title}</p>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      {r.aiScore != null && (
-                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                          r.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
-                        }`}>
-                          {r.aiScore.toFixed(1)} / 10
+                      {r.isAiGenerated === true && (
+                        <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+                          ⚠ AI-generated
                         </span>
                       )}
+                      {r.aiScore != null && (() => {
+                        // Week 2+ uses 0–3 scale (isAiGenerated not null); Week 1 uses 0–10
+                        const isNewSystem = r.isAiGenerated !== null
+                        if (isNewSystem) {
+                          const level = Math.round(r.aiScore)
+                          const labels: Record<number, { label: string; color: string }> = {
+                            0: { label: 'Level 0 — Invalid',   color: 'bg-red-100 text-red-700' },
+                            1: { label: 'Level 1 — Weak',      color: 'bg-amber-100 text-amber-700' },
+                            2: { label: 'Level 2 — Basic ✓',   color: 'bg-green-100 text-green-700' },
+                            3: { label: 'Level 3 — Strong ✓',  color: 'bg-emerald-100 text-emerald-700' },
+                          }
+                          const l = labels[level] ?? labels[0]
+                          return <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${l.color}`}>{l.label}</span>
+                        }
+                        return (
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                            r.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                          }`}>
+                            {r.aiScore.toFixed(1)} / 10
+                          </span>
+                        )
+                      })()}
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                         r.status === 'approved' ? 'bg-green-100 text-green-700' :
                         r.status === 'needs_revision' ? 'bg-amber-100 text-amber-700' :

@@ -46,6 +46,13 @@ interface TopicData {
   sortOrder: number
   references: { id: string; title: string; url: string; refType: string }[]
   subtopics: SubtopicData[]
+  // Topic-level projects (Week 2+, multiple per topic)
+  projects: {
+    id: string
+    title: string
+    isPublished: boolean
+    submissions: { id: string; grade: { scorePct: number } | null }[]
+  }[]
 }
 
 interface WeekData {
@@ -55,13 +62,15 @@ interface WeekData {
   description: string
   badgeIcon?: string | null
   badgeName?: string | null
-  weekProgress: { isUnlocked: boolean; isCompleted: boolean }[]
+  weekProgress: { isUnlocked: boolean; isCompleted: boolean; weekProjectSubmitted?: boolean; weekProjectGraded?: boolean }[]
   topics: TopicData[]
   retryGrantedQuizIds: string[]
   weeklyBadgeProgress?: {
     perfectionist: { total: number; qualified: number; unlocked: boolean }
     shipIt:        { total: number; graded: number;     unlocked: boolean }
   }
+  weekProject?: { id: string; title: string; isPublished: boolean } | null
+  weekProjectProgress?: { submitted: boolean; graded: boolean }
 }
 
 interface Reflection {
@@ -444,6 +453,36 @@ function TopicCard({ topic, onQuiz, onProject, retryGrantedQuizIds, onBadgesEarn
             )
           })}
 
+          {/* Topic-level projects (Week 2+) — inline like Week 1 subtopic projects */}
+          {topic.projects?.map(proj => {
+            const submitted = proj.submissions?.length > 0
+            return (
+              <div key={proj.id} className="flex items-center gap-4 px-5 py-3 bg-orange-50/40 border-t border-orange-100 hover:bg-orange-50 transition-colors">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-gray-900 truncate font-medium">{proj.title}</p>
+                  <p className="text-xs text-orange-600 font-semibold mt-0.5">Project</p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {submitted && (
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                      <ClipboardList size={9} /> Submitted ✓
+                    </span>
+                  )}
+                  <button
+                    onClick={() => onProject(proj.id)}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                      submitted
+                        ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+                        : 'bg-orange-500 text-white hover:bg-orange-600'
+                    }`}
+                  >
+                    <ClipboardList size={12} /> {submitted ? 'View' : 'Project'}
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+
           {/* Reflection section — shows as soon as all subtopics are done */}
           {allDone && (
             <div className="border-t border-[#F0ECFF]">
@@ -616,6 +655,41 @@ export default function WeekPage() {
             }}
           />
         ))}
+
+        {/* Week-level project section */}
+        {week.weekProject && (
+          <div className="rounded-2xl border border-purple-200 bg-white overflow-hidden">
+            <div className="px-5 py-3 bg-purple-50 border-b border-purple-100 flex items-center gap-2">
+              <ClipboardList size={14} className="text-purple-600" />
+              <span className="text-xs font-bold text-purple-700 uppercase tracking-widest">Week Project</span>
+            </div>
+            <div className="px-5 py-4 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-gray-900 mb-0.5">{week.weekProject.title}</p>
+                {!week.weekProject.isPublished && (
+                  <p className="text-xs text-gray-400">🔒 Locked — admin will unlock when ready</p>
+                )}
+              </div>
+              {week.weekProject.isPublished && (
+                week.weekProjectProgress?.submitted ? (
+                  <button
+                    onClick={() => router.push(`/project/${week.weekProject!.id}`)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors flex-shrink-0"
+                  >
+                    <ClipboardList size={12} /> View Submission
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => router.push(`/project/${week.weekProject!.id}`)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-600 text-white hover:bg-purple-700 transition-colors flex-shrink-0"
+                  >
+                    <ClipboardList size={12} /> Start Project
+                  </button>
+                )
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Badge unlock modal */}

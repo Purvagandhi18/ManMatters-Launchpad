@@ -24,11 +24,14 @@ export default function AdminProgressPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('/api/admin/progress').then(r => r.json()).then((data: LearnerSummary[]) => {
-      // Real learners first, test accounts at the bottom
-      setLearners([...data.filter(l => !l.isTestUser), ...data.filter(l => l.isTestUser)])
-      setLoading(false)
-    })
+    fetch('/api/admin/progress')
+      .then(r => r.json())
+      .then((data: LearnerSummary[] | { error: string }) => {
+        if (!Array.isArray(data)) { setLoading(false); return }
+        setLearners([...data.filter(l => !l.isTestUser), ...data.filter(l => l.isTestUser)])
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
   }, [])
 
   function exportCSV() {

@@ -11,14 +11,18 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
   const week = await prisma.week.findUnique({
     where: { id: params.id },
     include: {
+      weekProject: { select: { id: true, title: true } },
       topics: {
         orderBy: { sortOrder: 'asc' },
+        where: { tag: { not: 'capstone' } }, // hide legacy capstone container topics
         include: {
+          projects: { select: { id: true, title: true }, orderBy: { createdAt: 'asc' } }, // topic-level projects
           subtopics: {
             orderBy: { sortOrder: 'asc' },
+            where: { tag: { not: 'capstone' } },
             include: {
               quiz: { select: { id: true, status: true } },
-              project: { select: { id: true, title: true } },
+              project: { select: { id: true, title: true } }, // legacy subtopic project
             },
           },
           references: { orderBy: { sortOrder: 'asc' } },

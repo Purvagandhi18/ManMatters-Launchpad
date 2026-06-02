@@ -15,12 +15,32 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
     where: { id: params.id },
     include: {
       weekProgress: { where: { userId } },
+      // Week-level project
+      weekProject: { select: { id: true, title: true, isPublished: true } },
       topics: {
         orderBy: { sortOrder: 'asc' },
+        where: { tag: { not: 'capstone' } }, // exclude legacy capstone container topics from learner view
         include: {
           references: { orderBy: { sortOrder: 'asc' } },
+          // Topic-level projects (multiple allowed)
+          projects: {
+            where: { isPublished: true },
+            orderBy: { createdAt: 'asc' },
+            select: {
+              id: true,
+              title: true,
+              isPublished: true,
+              submissions: {
+                where: { userId },
+                orderBy: { submittedAt: 'desc' },
+                take: 1,
+                select: { id: true, grade: { select: { scorePct: true } } },
+              },
+            },
+          },
           subtopics: {
             orderBy: { sortOrder: 'asc' },
+            where: { tag: { not: 'capstone' } }, // exclude legacy capstone subtopics
             include: {
               quiz: {
                 select: {
@@ -44,6 +64,13 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
 
   if (!week) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
+  // Week-level project submission status
+  const weekProgressRecord = week.weekProgress[0]
+  const weekProjectProgress = {
+    submitted: weekProgressRecord?.weekProjectSubmitted ?? false,
+    graded: weekProgressRecord?.weekProjectGraded ?? false,
+  }
+
   const allSubtopics = week.topics.flatMap(t => t.subtopics)
   const quizIds = allSubtopics.map(s => (s as any).quiz?.id).filter(Boolean) as string[]
 
@@ -56,27 +83,27 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
   const retryGrantedQuizIds = retryGrants.map(g => g.referenceId).filter(Boolean) as string[]
 
   // ── Weekly badge progress ─────────────────────────────────────────────────
-  // Use quizIds (already computed above) as source of truth for quiz count.
-  // Query attempts and graded-project progress directly to avoid nested-select edge cases.
   const projectSubtopicIds = allSubtopics
     .filter(s => (s as any).project)
     .map(s => s.id)
 
   const weekNumber = week.number
-  const [firstAttempts, gradedCount, perfBadge, shipBadge] = await Promise.all([
-    // First attempts for all quizzes in this week
+  const [firstAttempts, gradedSubtopicCount, gradedTopicCount, perfBadge, shipBadge] = await Promise.all([
     quizIds.length > 0
       ? prisma.quizAttempt.findMany({
           where: { userId, quizId: { in: quizIds }, attemptNumber: 1 },
           select: { quizId: true, scorePct: true, passed: true },
         })
       : [],
-    // Count of graded projects in this week for this user
     projectSubtopicIds.length > 0
       ? prisma.userSubtopicProgress.count({
           where: { userId, subtopicId: { in: projectSubtopicIds }, projectGraded: true },
         })
       : 0,
+    // Count graded topic-level projects in this week
+    prisma.userTopicProgress.count({
+      where: { userId, topic: { weekId: week.id }, projectGraded: true },
+    }),
     prisma.userBadge.findFirst({ where: { userId, weekNumber, badge: { conditionValue: 'perfectionist' } } }),
     prisma.userBadge.findFirst({ where: { userId, weekNumber, badge: { conditionValue: 'ship_it' } } }),
   ])
@@ -84,13 +111,15 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
   const perfTotal     = quizIds.length
   const perfQualified = (firstAttempts as { quizId: string; scorePct: number; passed: boolean }[])
     .filter(a => a.passed && a.scorePct >= 90).length
-  const shipTotal  = projectSubtopicIds.length
-  const shipGraded = gradedCount as number
+
+  // Ship It counts all project types
+  const shipTotal  = projectSubtopicIds.length + week.topics.filter(t => (t as any).project).length
+  const shipGraded = (gradedSubtopicCount as number) + (gradedTopicCount as number)
 
   const weeklyBadgeProgress = {
     perfectionist: { total: perfTotal, qualified: perfQualified, unlocked: !!perfBadge },
     shipIt:        { total: shipTotal, graded: shipGraded,       unlocked: !!shipBadge },
   }
 
-  return NextResponse.json({ ...week, retryGrantedQuizIds, weeklyBadgeProgress })
+  return NextResponse.json({ ...week, retryGrantedQuizIds, weeklyBadgeProgress, weekProjectProgress })
 }
