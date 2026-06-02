@@ -33,7 +33,7 @@ export function AdminSidebar() {
           </Link>
           {/* Admin bell — white tinted version */}
           <div className="[&_button]:text-gray-400 [&_button:hover]:text-white [&_button:hover]:bg-gray-700">
-            <NotificationBell mode="admin" />
+            <NotificationBell mode="admin" placement="right" />
           </div>
         </div>
         <p className="text-xs text-gray-400 mt-1">Admin Panel</p>
