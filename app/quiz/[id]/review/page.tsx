@@ -15,8 +15,10 @@ interface ReviewQuestion {
   text: string
   type: string
   options: ReviewOption[]
-  selectedOptionId: string | null
-  correctOptionId: string | null
+  selectedOptionId?: string | null
+  correctOptionId?: string | null
+  selectedOptionIds?: string[]
+  correctOptionIds?: string[]
   isCorrect: boolean | null
 }
 
@@ -155,8 +157,12 @@ export default function QuizReviewPage() {
                     <p className="text-sm font-medium text-gray-900 mb-2">{i + 1}. {q.text}</p>
                     <div className="space-y-1.5">
                       {q.options.map(opt => {
-                        const isCorrect  = opt.id === q.correctOptionId
-                        const isSelected = opt.id === q.selectedOptionId
+                        const isCorrect  = q.type === 'multi_select'
+                          ? (q.correctOptionIds ?? []).includes(opt.id)
+                          : opt.id === q.correctOptionId
+                        const isSelected = q.type === 'multi_select'
+                          ? (q.selectedOptionIds ?? []).includes(opt.id)
+                          : opt.id === q.selectedOptionId
                         return (
                           <div
                             key={opt.id}

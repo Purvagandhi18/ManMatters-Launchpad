@@ -28,7 +28,7 @@ interface QuizResult {
   badgesEarned?: { id: string; name: string; iconEmoji: string; description?: string }[]
   questions: {
     id: string; text: string; type: string; options: AnswerOption[]
-    correctOptionId?: string; selectedOptionId?: string; isCorrect?: boolean | null
+    correctOptionId?: string; selectedOptionId?: string; correctOptionIds?: string[]; selectedOptionIds?: string[]; isCorrect?: boolean | null
   }[]
 }
 
@@ -69,7 +69,7 @@ export default function QuizPage() {
 
   const [quiz, setQuiz]           = useState<QuizData | null>(null)
   const [phase, setPhase]         = useState<Phase>('loading')
-  const [answers, setAnswers]     = useState<Record<string, string>>({})
+  const [answers, setAnswers]     = useState<Record<string, string | string[]>>({})
   const [currentQ, setCurrentQ]   = useState(0)
   const [result, setResult]       = useState<QuizResult | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -90,8 +90,18 @@ export default function QuizPage() {
       .then(data => { setQuiz(data); setPhase('taking') })
   }, [params.id])
 
-  function selectAnswer(questionId: string, optionId: string) {
-    setAnswers(prev => ({ ...prev, [questionId]: optionId }))
+  function selectAnswer(questionId: string, optionId: string, isMulti: boolean) {
+    if (isMulti) {
+      setAnswers(prev => {
+        const current = (prev[questionId] as string[]) || []
+        const next = current.includes(optionId)
+          ? current.filter(id => id !== optionId)
+          : [...current, optionId]
+        return { ...prev, [questionId]: next }
+      })
+    } else {
+      setAnswers(prev => ({ ...prev, [questionId]: optionId }))
+    }
   }
 
   async function submitQuiz() {
@@ -280,8 +290,12 @@ export default function QuizPage() {
                         <p className="text-sm font-medium text-gray-900 mb-2">{i + 1}. {q.text}</p>
                         <div className="space-y-1.5">
                           {q.options.map(opt => {
-                            const isCorrect  = opt.id === q.correctOptionId
-                            const isSelected = opt.id === q.selectedOptionId
+                            const isCorrect  = q.type === 'multi_select'
+                              ? (q.correctOptionIds ?? []).includes(opt.id)
+                              : opt.id === q.correctOptionId
+                            const isSelected = q.type === 'multi_select'
+                              ? (q.selectedOptionIds ?? []).includes(opt.id)
+                              : opt.id === q.selectedOptionId
                             return (
                               <div
                                 key={opt.id}
@@ -360,7 +374,11 @@ export default function QuizPage() {
 
   const question     = quiz.questions[currentQ]
   const totalQ       = quiz.questions.length
-  const allAnswered  = Object.keys(answers).length === totalQ
+  const allAnswered  = quiz.questions.every(q => {
+    const a = answers[q.id]
+    if (!a) return false
+    return Array.isArray(a) ? a.length > 0 : true
+  })
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
@@ -409,12 +427,18 @@ export default function QuizPage() {
             <h2 className="text-lg font-semibold text-gray-900 mb-6 leading-snug">{question.text}</h2>
 
             <div className="space-y-3">
+              {question.type === 'multi_select' && (
+                <p className="text-xs text-gray-400 -mt-2 mb-1">Select all that apply</p>
+              )}
               {question.options.map((opt) => {
-                const isSelected = answers[question.id] === opt.id
+                const isMulti = question.type === 'multi_select'
+                const isSelected = isMulti
+                  ? ((answers[question.id] as string[]) || []).includes(opt.id)
+                  : answers[question.id] === opt.id
                 return (
                   <motion.button
                     key={opt.id}
-                    onClick={() => selectAnswer(question.id, opt.id)}
+                    onClick={() => selectAnswer(question.id, opt.id, isMulti)}
                     whileHover={{ scale: 1.015, x: 2 }}
                     whileTap={{ scale: 0.98 }}
                     animate={isSelected
@@ -423,10 +447,18 @@ export default function QuizPage() {
                     }
                     transition={{ duration: 0.15 }}
                     className={cn(
-                      'w-full text-left px-4 py-3.5 rounded-xl border-2 text-sm font-medium transition-colors',
+                      'w-full text-left px-4 py-3.5 rounded-xl border-2 text-sm font-medium transition-colors flex items-center gap-3',
                       isSelected ? 'text-brand-700' : 'text-gray-700'
                     )}
                   >
+                    {isMulti && (
+                      <span className={cn(
+                        'w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center text-[10px]',
+                        isSelected ? 'bg-brand-600 border-brand-600 text-white' : 'border-gray-300'
+                      )}>
+                        {isSelected && '✓'}
+                      </span>
+                    )}
                     {opt.text}
                   </motion.button>
                 )
@@ -456,7 +488,7 @@ export default function QuizPage() {
                   'w-7 h-7 rounded-full text-xs font-bold transition-colors',
                   i === currentQ
                     ? 'bg-brand-600 text-white'
-                    : answers[q.id]
+                    : (Array.isArray(answers[q.id]) ? (answers[q.id] as string[]).length > 0 : !!answers[q.id])
                     ? 'bg-green-100 text-green-700'
                     : 'bg-gray-200 text-gray-500'
                 )}
@@ -498,7 +530,7 @@ export default function QuizPage() {
             transition={{ repeat: Infinity, duration: 2 }}
             className="text-center text-xs text-gray-400 mt-3"
           >
-            {totalQ - Object.keys(answers).length} question{totalQ - Object.keys(answers).length !== 1 ? 's' : ''} remaining
+            {quiz.questions.filter(q => { const a = answers[q.id]; return !a || (Array.isArray(a) && a.length === 0) }).length} question{quiz.questions.filter(q => { const a = answers[q.id]; return !a || (Array.isArray(a) && a.length === 0) }).length !== 1 ? 's' : ''} remaining
           </motion.p>
         )}
       </div>

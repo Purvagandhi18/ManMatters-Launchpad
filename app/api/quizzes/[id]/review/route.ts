@@ -30,17 +30,39 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
 
   if (!attempt) return NextResponse.json(null)
 
-  const questions = attempt.answers
-    .sort((a, b) => (a.question.sortOrder ?? 0) - (b.question.sortOrder ?? 0))
-    .map(a => ({
-      id: a.questionId,
-      text: a.question.text,
-      type: a.question.type,
-      options: a.question.options.map(o => ({ id: o.id, text: o.text, isCorrect: o.isCorrect })),
-      selectedOptionId: a.selectedOptionId,
-      correctOptionId: a.question.options.find(o => o.isCorrect)?.id ?? null,
-      isCorrect: a.isCorrect,
-    }))
+  const grouped = new Map<string, typeof attempt.answers>()
+  for (const a of attempt.answers) {
+    const arr = grouped.get(a.questionId) ?? []
+    arr.push(a)
+    grouped.set(a.questionId, arr)
+  }
+
+  const questions = [...grouped.values()]
+    .sort((a, b) => (a[0].question.sortOrder ?? 0) - (b[0].question.sortOrder ?? 0))
+    .map(group => {
+      const first = group[0]
+      const q = first.question
+      if (q.type === 'multi_select') {
+        return {
+          id: first.questionId,
+          text: q.text,
+          type: q.type,
+          options: q.options.map(o => ({ id: o.id, text: o.text, isCorrect: o.isCorrect })),
+          selectedOptionIds: group.map(a => a.selectedOptionId).filter(Boolean),
+          correctOptionIds: q.options.filter(o => o.isCorrect).map(o => o.id),
+          isCorrect: first.isCorrect,
+        }
+      }
+      return {
+        id: first.questionId,
+        text: q.text,
+        type: q.type,
+        options: q.options.map(o => ({ id: o.id, text: o.text, isCorrect: o.isCorrect })),
+        selectedOptionId: first.selectedOptionId,
+        correctOptionId: q.options.find(o => o.isCorrect)?.id ?? null,
+        isCorrect: first.isCorrect,
+      }
+    })
 
   return NextResponse.json({
     attemptNumber: attempt.attemptNumber,
