@@ -11,7 +11,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const userId = (session.user as { id: string }).id
 
   const body = await req.json()
-  const { answers } = body as { answers: Record<string, string> }
+  const { answers } = body as { answers: Record<string, string | string[]> }
 
   const quiz = await prisma.quiz.findUnique({
     where: { id: params.id },
@@ -46,12 +46,24 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   for (const question of quiz.questions) {
     const ans = answers[question.id]
     if (question.type === 'short_answer') {
-      attemptAnswers.push({ questionId: question.id, selectedOptionId: null, textResponse: ans ?? '', isCorrect: null })
+      attemptAnswers.push({ questionId: question.id, selectedOptionId: null, textResponse: (ans as string) ?? '', isCorrect: null })
+    } else if (question.type === 'multi_select') {
+      const selectedIds = Array.isArray(ans) ? ans : []
+      const correctIds = new Set(question.options.filter(o => o.isCorrect).map(o => o.id))
+      const selectedSet = new Set(selectedIds)
+      const correct = correctIds.size === selectedSet.size && [...correctIds].every(id => selectedSet.has(id))
+      if (correct) rawScore += question.points
+      for (const optId of selectedIds) {
+        attemptAnswers.push({ questionId: question.id, selectedOptionId: optId, textResponse: null, isCorrect: correct })
+      }
+      if (selectedIds.length === 0) {
+        attemptAnswers.push({ questionId: question.id, selectedOptionId: null, textResponse: null, isCorrect: false })
+      }
     } else {
-      const selectedOpt = question.options.find(o => o.id === ans)
+      const selectedOpt = question.options.find(o => o.id === (ans as string))
       const correct = selectedOpt?.isCorrect ?? false
       if (correct) rawScore += question.points
-      attemptAnswers.push({ questionId: question.id, selectedOptionId: ans ?? null, textResponse: null, isCorrect: correct })
+      attemptAnswers.push({ questionId: question.id, selectedOptionId: (ans as string) ?? null, textResponse: null, isCorrect: correct })
     }
   }
 
@@ -105,8 +117,22 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   }
 
   const questionsWithAnswers = quiz.questions.map(q => {
+    const givenAll = attemptAnswers.filter(a => a.questionId === q.id)
+    if (q.type === 'multi_select') {
+      const correctIds = q.options.filter(o => o.isCorrect).map(o => o.id)
+      const selectedIds = givenAll.map(a => a.selectedOptionId).filter(Boolean) as string[]
+      return {
+        id: q.id,
+        text: q.text,
+        type: q.type,
+        options: q.options,
+        correctOptionIds: correctIds,
+        selectedOptionIds: selectedIds,
+        isCorrect: givenAll[0]?.isCorrect ?? false,
+      }
+    }
     const correct = q.options.find(o => o.isCorrect)
-    const given = attemptAnswers.find(a => a.questionId === q.id)
+    const given = givenAll[0]
     return {
       id: q.id,
       text: q.text,
